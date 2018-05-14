@@ -1,0 +1,30 @@
+---
+  GrafanaMetrics.push_metric_from_instance:
+    {% set flavor = flavor or "grafana_test.small" %}
+    {% set image = image or "TestVM" %}
+    -
+      args:
+        flavor:
+          name: {{ flavor }}
+        image:
+          name: {{ image }}
+        monitor_vip: {{ monitor_vip }}
+        pushgateway_port: {{ pushgateway_port or 9091 }}
+        grafana:
+          user: {{ grafana_user }}
+          password: {{ grafana_password }}
+          port: {{ grafana_port or 3000 }}
+        datasource_id: {{ datasource }}
+        sleep_time: {{ sleep_time or 5 }}
+        retries_total: {{ retries_total or 30 }}
+      runner:
+        type: "constant"
+        times: {{ compute }}
+        concurrency: {{ concurrency }}
+      context:
+        users:
+          tenants: 1
+          users_per_tenant: 1
+      sla:
+        failure_rate:
+          max: 0
