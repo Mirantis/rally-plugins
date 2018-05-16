@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 import requests
 
 from rally.common import cfg
@@ -70,20 +71,20 @@ class ElasticsearchLogInstanceName(scenario.OpenStackScenario):
         LOG.info("Check server name %s in elasticsearch" % name)
         i = 0
         while i < retries_total:
-            LOG.info("Attempt number %s" % (i + 1))
+            LOG.debug("Attempt number %s" % (i + 1))
             resp = requests.get("http://%(ip)s:%(port)s/_search" % {
                 "ip": logging_vip, "port": elasticsearch_port},
-                data=request_data)
+                data=json.dumps(request_data))
             result = resp.json()
             if result["hits"]["total"] < 1 and i + 1 >= retries_total:
-                LOG.warning("No instance data found in Elasticsearch")
-                self.assertGreater(len(result["hits"]["total"]), 0)
+                LOG.debug("No instance data found in Elasticsearch")
+                self.assertGreater(result["hits"]["total"], 0)
             elif result["hits"]["total"] < 1:
                 i += 1
                 commonutils.interruptable_sleep(sleep_time)
             else:
-                LOG.warning("Instance data found in Elasticsearch")
-                self.assertGreater(len(result["hits"]["total"]), 0)
+                LOG.debug("Instance data found in Elasticsearch")
+                self.assertGreater(result["hits"]["total"], 0)
                 break
 
     def run(self, image, flavor, logging_vip, elasticsearch_port,

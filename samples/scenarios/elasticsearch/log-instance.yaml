@@ -2,6 +2,9 @@
   ElasticsearchLogging.log_instance:
     {% set flavor = flavor or "esc_test.small" %}
     {% set image = image or "TestVM" %}
+    {% set elasticsearch_port = elasticsearch_port or 9200 %}
+    {% set sleep_time = sleep_time or 5 %}
+    {% set retries_total = retries_total or 30 %}
     -
       args:
         flavor:
@@ -9,9 +12,9 @@
         image:
           name: {{ image }}
         logging_vip: {{ logging_vip }}
-        elasticsearch_port: {{ elasticsearch_port or 5601 }}
-        sleep_time: {{ sleep_time or 5 }}
-        retries_total: {{ retries_total or 30 }}
+        elasticsearch_port: {{ elasticsearch_port }}
+        sleep_time: {{ sleep_time }}
+        retries_total: {{ retries_total }}
       runner:
         type: "constant"
         times: {{ compute }}
