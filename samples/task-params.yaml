@@ -1,0 +1,23 @@
+---
+  sleep_time: 5
+  retries_total: 30
+  concurrency: 2
+  compute: 2
+  gre_enabled: true
+  super_light: true
+  super_light_count: 2
+  super_light_concurrency: 2
+  vlan_amount: 1
+  current_path: '/home/rally/test_config/rally-scenarios'
+  floating_ip_amount: 11
+  floating_net: "public"
+  duration: 604800.0
+  flavor: "m1.nano"
+  monitor_vip: 10.11.0.70
+  pushgateway_port: 15012
+  grafana_user: admin
+  grafana_password: admin
+  grafana_port: 15013
+  datasource: 1
+  logging_vip: 10.11.0.60
+  elasticsearch_port: 9200
