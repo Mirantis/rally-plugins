@@ -2,6 +2,10 @@
   GrafanaMetrics.push_metric_from_instance:
     {% set flavor = flavor or "grafana_test.small" %}
     {% set image = image or "TestVM" %}
+    {% set pushgateway_port = pushgateway_port or 9091 %}
+    {% set grafana_port = grafana_port or 3000 %}
+    {% set sleep_time = sleep_time or 5 %}
+    {% set retries_total = retries_total or 30 %}
     -
       args:
         flavor:
@@ -9,14 +13,15 @@
         image:
           name: {{ image }}
         monitor_vip: {{ monitor_vip }}
-        pushgateway_port: {{ pushgateway_port or 9091 }}
+        pushgateway_port: {{ pushgateway_port }}
         grafana:
           user: {{ grafana_user }}
           password: {{ grafana_password }}
-          port: {{ grafana_port or 3000 }}
+          port: {{ grafana_port }}
         datasource_id: {{ datasource }}
-        sleep_time: {{ sleep_time or 5 }}
-        retries_total: {{ retries_total or 30 }}
+        job_name: rally-test
+        sleep_time: {{ sleep_time }}
+        retries_total: {{ retries_total }}
       runner:
         type: "constant"
         times: {{ compute }}
