@@ -20,7 +20,7 @@ from rally.task import validation
 
 from rally_openstack import consts
 from rally_openstack import scenario
-from rally_scenarios.services.grafana import grafana as grafana_service
+from rally_plugins.services.grafana import grafana as grafana_service
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
