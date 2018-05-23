@@ -5,3 +5,4 @@
 rally>=0.11.0
 rally-openstack>=1.0.0
 requests>=2.14.2                                       # Apache License, Version 2.0
+kubernetes>1.0.0                                       # Apache License Version 2.0
