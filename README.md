@@ -39,4 +39,6 @@ Next scenarios are implemented in *rally-plugins*:
 - grafana check metric pushed from nova instance by pushgateway
 - grafana check metric pushed locally by pushgateway
 - elasticsearch check data about created nova instance stored
+- kubernetes create namespaces and pods sequence in them
 
+For more details how to run and analyze tests, see `docs\source` directory. 
