@@ -1,0 +1,18 @@
+---
+  Kubernetes.run_namespaced_pods:
+  -
+    args:
+      pods_number: 1
+      image: kubernetes/pause
+      sleep_time: 5
+      retries_total: 30
+    runner:
+      type: "constant"
+      times: 10
+      concurrency: 1
+    context:
+      kubeconfig:
+        config_file: /Users/prazumovsky/.kube/config
+    sla:
+      failure_rate:
+        max: 0
