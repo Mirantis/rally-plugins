@@ -14,8 +14,12 @@
 
 import random
 
+from rally.common import logging
 from rally.task import scenario
 from rally_plugins.services.kube import kube
+
+
+LOG = logging.getLogger(__name__)
 
 
 @scenario.configure(name="Kubernetes.run_namespaced_pods",
@@ -29,34 +33,38 @@ class NamespacedPodsPlugin(scenario.Scenario):
 
     def __init__(self, context=None):
         super(NamespacedPodsPlugin, self).__init__(context)
+        spec = {"namespaces": self.context.get("namespaces"),
+                "serviceaccounts": self.context.get("serviceaccounts")}
         if "env" in self.context:
+            spec.update(self.context["env"]["platforms"]["kubernetes"])
             self.client = kube.KubernetesService(
-                self.context["env"]["platforms"]["kubernetes"],
+                spec,
                 name_generator=self.generate_random_name,
                 atomic_inst=self.atomic_actions())
 
     def _make_event_data(self):
-        data = []
-        data_map = {}
-        data_idx = 0
+        data = [["kube.initialized_pod", 0],
+                ["kube.scheduled_pod", 0],
+                ["kube.created_pod", 0]]
         state_map = {
             "kube.initialized_pod": 0,
             "kube.scheduled_pod": 1,
             "kube.created_pod": 2
         }
+
         for e in self.client.events:
-            if data_map.get(e["pod_name"]) is None:
-                data_map[e["pod_name"]] = data_idx
-                data.append([e["pod_name"], []])
-                data_idx += 1
             duration = e["finished_at"] - e["started_at"]
-            data[data_map[e["pod_name"]]][1].append([state_map[e["name"]],
-                                                     duration])
+            data[state_map[e["name"]]] = [
+                e["name"],
+                max(duration, data[state_map[e["name"]]][1], duration)
+            ]
         return data
 
-    def _cleanup(self, pods, namespace):
+    def _cleanup(self, pods, namespace, sleep_time, retries_total):
         for pod in pods:
-            self.client.delete_pod(pod, namespace=namespace)
+            self.assertTrue(self.client.delete_pod(
+                pod, namespace=namespace, sleep_time=sleep_time,
+                retries_total=retries_total))
 
     def _choose_namespace(self):
         if self.context["namespace_choice_method"] == "random":
@@ -81,14 +89,14 @@ class NamespacedPodsPlugin(scenario.Scenario):
                 pod_name, image=image, namespace=namespace,
                 sleep_time=sleep_time, retries_total=retries_total))
             pods.append(pod_name)
-        self._cleanup(pods, namespace)
+        self._cleanup(pods, namespace, sleep_time, retries_total)
 
         data = self._make_event_data()
         self.add_output(
-            complete={"title": "Pods conditions total duration",
-                      "description": "Pod(s sequence): %s" % " => ".join(pods),
+            additive={"title": "Pods conditions total duration",
+                      "description": "Total durations for pods sequence in "
+                                     "each iteration",
                       "chart_plugin": "StackedArea",
                       "data": data,
                       "label": "Total seconds",
-                      "axis_label": "Pod conditions (0 - Initialize, "
-                                    "1 - Scheduled, 2 - Ready)"})
+                      "axis_label": "Iteration"})

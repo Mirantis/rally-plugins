@@ -30,6 +30,7 @@ class KubernetesService(service.Service):
         super(KubernetesService, self).__init__(None,
                                                 name_generator=name_generator,
                                                 atomic_inst=atomic_inst)
+        self._spec = spec
         apiclient = config.new_client_from_config(spec.get("config_file"))
         self.api = core_v1_api.CoreV1Api(api_client=apiclient)
         self.events = []
@@ -164,6 +165,9 @@ class KubernetesService(service.Service):
             }
         }
 
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["serviceAccountName"]
+
         i = 0
         create_started = False
         while i < retries_total:
@@ -207,18 +211,33 @@ class KubernetesService(service.Service):
         return False
 
     @atomic.action_timer("kube.delete_pod")
-    def delete_pod(self, name, namespace):
+    def delete_pod(self, name, namespace, sleep_time=5, retries_total=30):
         """Delete pod from namespace.
 
         :param name: pod's name
         :param namespace: pod's namespace
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
         """
         resp = self.api.delete_namespaced_pod(name=name, namespace=namespace,
                                               body=client.V1DeleteOptions())
-        LOG.info("Pod %(name)s deleted. Status: %(status)s" % {
+        LOG.info("Pod %(name)s delete started. Status: %(status)s" % {
             "name": name,
             "status": resp.status
         })
+
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                self.api.read_namespaced_pod_status(name=name,
+                                                    namespace=namespace)
+            except Exception:
+                return True
+            else:
+                commonutils.interruptable_sleep(sleep_time)
+                i += 1
+        return False
 
     @atomic.action_timer("kube.delete_namespace")
     def delete_namespace(self, name):
@@ -226,7 +245,9 @@ class KubernetesService(service.Service):
 
         :param name: namespace name
         """
-        resp = self.api.delete_namespace(name=name, body=client.V1DeleteOptions())
+        resp = self.api.delete_namespace(name=name,
+                                         body=client.V1DeleteOptions())
+
         LOG.info("Namespace %(name)s deleted. Status: %(status)s" % {
             "name": name,
             "status": resp.status

@@ -67,6 +67,7 @@ class KubernetesNamespaceContext(context.Context):
                 break
             self.context["namespaces"].append(new_name)
             if self.config.get("with_serviceaccount"):
+                self.context["serviceaccounts"] = True
                 self.client.create_serviceaccount(new_name, namespace=new_name)
 
     def cleanup(self):
