@@ -126,7 +126,6 @@ class KubernetesService(service.Service):
                     "finished_at": finish
                 })
         self.events.extend([{
-            "pod_name": name,
             "name": k,
             "started_at": v["started_at"],
             "finished_at": v["finished_at"]}

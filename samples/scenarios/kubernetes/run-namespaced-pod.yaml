@@ -1,8 +1,7 @@
 ---
-  Kubernetes.run_namespaced_pods:
+  Kubernetes.run_namespaced_pod:
   -
     args:
-      pods_number: 1
       image: kubernetes/pause
       sleep_time: 1
       retries_total: 30
@@ -12,14 +11,13 @@
       rps: 3
     context:
       kubernetes.namespaces:
-        count: 3
+        count: 4
         with_serviceaccount: yes
     sla:
       failure_rate:
         max: 0
   -
     args:
-      pods_number: 1
       image: kubernetes/pause
       sleep_time: 1
       retries_total: 30
@@ -29,7 +27,7 @@
       concurrency: 4
     context:
       kubernetes.namespaces:
-        count: 3
+        count: 4
         with_serviceaccount: yes
     sla:
       failure_rate:

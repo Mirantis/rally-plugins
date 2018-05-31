@@ -22,17 +22,17 @@ from rally_plugins.services.kube import kube
 LOG = logging.getLogger(__name__)
 
 
-@scenario.configure(name="Kubernetes.run_namespaced_pods",
+@scenario.configure(name="Kubernetes.run_namespaced_pod",
                     platform="kubernetes")
-class NamespacedPodsPlugin(scenario.Scenario):
-    """Kubernetes pods sequence create and delete test.
+class NamespacedPodPlugin(scenario.Scenario):
+    """Kubernetes pod create and delete test.
 
-    Choose created namespace, create defined number of pods, wait until they
-    not be running and delete them after.
+    Choose created namespace, create pod with defined image, wait until it
+    not be running and delete it after.
     """
 
     def __init__(self, context=None):
-        super(NamespacedPodsPlugin, self).__init__(context)
+        super(NamespacedPodPlugin, self).__init__(context)
         spec = {"namespaces": self.context.get("namespaces"),
                 "serviceaccounts": self.context.get("serviceaccounts")}
         if "env" in self.context:
@@ -43,9 +43,7 @@ class NamespacedPodsPlugin(scenario.Scenario):
                 atomic_inst=self.atomic_actions())
 
     def _make_event_data(self):
-        data = [["kube.initialized_pod", 0],
-                ["kube.scheduled_pod", 0],
-                ["kube.created_pod", 0]]
+        data = [[] for _ in range(3)]
         state_map = {
             "kube.initialized_pod": 0,
             "kube.scheduled_pod": 1,
@@ -54,48 +52,43 @@ class NamespacedPodsPlugin(scenario.Scenario):
 
         for e in self.client.events:
             duration = e["finished_at"] - e["started_at"]
-            data[state_map[e["name"]]] = [
-                e["name"],
-                max(duration, data[state_map[e["name"]]][1], duration)
-            ]
+            data[state_map[e["name"]]] = [e["name"], duration]
         return data
-
-    def _cleanup(self, pods, namespace, sleep_time, retries_total):
-        for pod in pods:
-            self.assertTrue(self.client.delete_pod(
-                pod, namespace=namespace, sleep_time=sleep_time,
-                retries_total=retries_total))
 
     def _choose_namespace(self):
         if self.context["namespace_choice_method"] == "random":
             return random.choice(self.context["namespaces"])
         elif self.context["namespace_choice_method"] == "round_robin":
-            return self.context["namespaces"][self.context["iteration"] - 1]
+            idx = (self.context["iteration"] - 1)
+            idx = idx % len(self.context["namespaces"])
+            return self.context["namespaces"][idx]
 
-    def run(self, pods_number, image, sleep_time=5, retries_total=30):
-        """Create number of pods and delete them.
+    def run(self, image, sleep_time=5, retries_total=30):
+        """Create pod and then delete it.
 
-        :param pods_number: total number of pods in sequence
         :param image: image used in pods manifests
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
         """
         namespace = self._choose_namespace()
-        pods = []
-        for i in range(pods_number):
-            pod_name = self.generate_random_name().replace('_',
-                                                           '-').lower()
-            self.assertTrue(self.client.create_pod(
-                pod_name, image=image, namespace=namespace,
-                sleep_time=sleep_time, retries_total=retries_total))
-            pods.append(pod_name)
-        self._cleanup(pods, namespace, sleep_time, retries_total)
+        pod = self.generate_random_name().replace('_', '-').lower()
+
+        # create
+        self.assertTrue(self.client.create_pod(pod, image=image,
+                                               namespace=namespace,
+                                               sleep_time=sleep_time,
+                                               retries_total=retries_total))
+
+        # cleanup
+        self.assertTrue(self.client.delete_pod(pod, namespace=namespace,
+                                               sleep_time=sleep_time,
+                                               retries_total=retries_total))
 
         data = self._make_event_data()
         self.add_output(
-            additive={"title": "Pods conditions total duration",
-                      "description": "Total durations for pods sequence in "
-                                     "each iteration",
+            additive={"title": "Pod's conditions total duration",
+                      "description": "Total durations for pod in each "
+                                     "iteration",
                       "chart_plugin": "StackedArea",
                       "data": data,
                       "label": "Total seconds",

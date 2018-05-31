@@ -12,7 +12,6 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from kubernetes import config
 from rally.task import context
 from rally.common import logging
 from rally import consts
