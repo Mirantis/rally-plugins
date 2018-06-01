@@ -209,6 +209,123 @@ class KubernetesService(service.Service):
                     return True
         return False
 
+    @atomic.action_timer("kube.create_replication_controller")
+    def create_rc(self, name, replicas, image, namespace, sleep_time=5,
+                  retries_total=30):
+        """Create RC and wait until it won't be running.
+
+        :param name: replication controller name
+        :param replicas: number of replicas
+        :param image: image for each replica
+        :param namespace: replication controller namespace
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :return: True if create finished successfully and False otherwise
+        """
+
+        app = self.generate_random_name().replace("_", "-").lower()
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ReplicationController",
+            "metadata": {
+                "name": name,
+            },
+            "spec": {
+                "replicas": replicas,
+                "selector": {
+                    "app": app
+                },
+                "template": {
+                    "metadata": {
+                        "name": name,
+                        "labels": {
+                            "app": app
+                        }
+                    },
+                    "spec": {
+                        "serviceAccountName": namespace,
+                        "containers": [
+                            {
+                                "name": name,
+                                "image": image
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["template"]["spec"]["serviceAccountName"]
+
+        i = 0
+        create_started = False
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                self.api.create_namespaced_replication_controller(
+                    body=manifest, namespace=namespace)
+                LOG.info("RC %s created" % name)
+            except Exception as ex:
+                LOG.error("RC create failed: %s" % ex.message)
+                i += 1
+                commonutils.interruptable_sleep(sleep_time)
+            else:
+                create_started = True
+                break
+
+        if not create_started:
+            return False
+
+        i = 0
+        LOG.debug("Wait until RC pods won't be ready")
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                resp = self.api.read_namespaced_replication_controller(
+                    name=name, namespace=namespace)
+            except Exception as ex:
+                LOG.warning("Unable to read RC status: %s" % ex.message)
+                i += 1
+                commonutils.interruptable_sleep(sleep_time)
+            else:
+                if resp.status.ready_replicas != resp.status.replicas:
+                    i += 1
+                    commonutils.interruptable_sleep(sleep_time)
+                else:
+                    return True
+        return False
+
+    @atomic.action_timer("kube.delete_replication_controller")
+    def delete_rc(self, name, namespace, sleep_time=5, retries_total=30):
+        """Delete RC from namespace and wait until it won't be terminated.
+
+        :param name: replication controller name
+        :param namespace: namespace name of defined RC
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :returns True if delete successful and False otherwise
+        """
+        resp = self.api.delete_namespaced_replication_controller(
+            name=name, namespace=namespace, body=client.V1DeleteOptions())
+        LOG.info("RC %(name)s delete started. Status: %(status)s" % {
+            "name": name,
+            "status": resp.status
+        })
+
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                self.api.read_namespaced_replication_controller_status(
+                    name=name, namespace=namespace)
+            except Exception:
+                return True
+            else:
+                commonutils.interruptable_sleep(sleep_time)
+                i += 1
+        return False
+
     @atomic.action_timer("kube.delete_pod")
     def delete_pod(self, name, namespace, sleep_time=5, retries_total=30):
         """Delete pod from namespace.
@@ -217,6 +334,7 @@ class KubernetesService(service.Service):
         :param namespace: pod's namespace
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :returns True if delete successful and False otherwise
         """
         resp = self.api.delete_namespaced_pod(name=name, namespace=namespace,
                                               body=client.V1DeleteOptions())

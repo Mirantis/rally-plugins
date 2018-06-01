@@ -12,11 +12,10 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import random
-
 from rally.common import logging
 from rally.task import scenario
-from rally_plugins.services.kube import kube
+
+from rally_plugins.scenarios.kubernetes import common
 
 
 LOG = logging.getLogger(__name__)
@@ -24,23 +23,12 @@ LOG = logging.getLogger(__name__)
 
 @scenario.configure(name="Kubernetes.run_namespaced_pod",
                     platform="kubernetes")
-class NamespacedPodPlugin(scenario.Scenario):
+class NamespacedPodPlugin(common.KubernetesScenario, scenario.Scenario):
     """Kubernetes pod create and delete test.
 
     Choose created namespace, create pod with defined image, wait until it
     not be running and delete it after.
     """
-
-    def __init__(self, context=None):
-        super(NamespacedPodPlugin, self).__init__(context)
-        spec = {"namespaces": self.context.get("namespaces"),
-                "serviceaccounts": self.context.get("serviceaccounts")}
-        if "env" in self.context:
-            spec.update(self.context["env"]["platforms"]["kubernetes"])
-            self.client = kube.KubernetesService(
-                spec,
-                name_generator=self.generate_random_name,
-                atomic_inst=self.atomic_actions())
 
     def _make_event_data(self):
         data = [[] for _ in range(3)]
@@ -55,14 +43,6 @@ class NamespacedPodPlugin(scenario.Scenario):
             data[state_map[e["name"]]] = [e["name"], duration]
         return data
 
-    def _choose_namespace(self):
-        if self.context["namespace_choice_method"] == "random":
-            return random.choice(self.context["namespaces"])
-        elif self.context["namespace_choice_method"] == "round_robin":
-            idx = (self.context["iteration"] - 1)
-            idx = idx % len(self.context["namespaces"])
-            return self.context["namespaces"][idx]
-
     def run(self, image, sleep_time=5, retries_total=30):
         """Create pod and then delete it.
 
@@ -71,7 +51,7 @@ class NamespacedPodPlugin(scenario.Scenario):
         :param retries_total: total number of retries
         """
         namespace = self._choose_namespace()
-        pod = self.generate_random_name().replace('_', '-').lower()
+        pod = self.generate_name()
 
         # create
         self.assertTrue(self.client.create_pod(pod, image=image,
@@ -93,3 +73,27 @@ class NamespacedPodPlugin(scenario.Scenario):
                       "data": data,
                       "label": "Total seconds",
                       "axis_label": "Iteration"})
+
+
+@scenario.configure(name="Kubernetes.create_delete_replication_controller")
+class RCCreateAndDelete(common.KubernetesScenario, scenario.Scenario):
+    """Kubernetes replication controller create and delete test.
+
+    Choose created namespace, create RC with defined image and number of
+    replicas, wait until it won't be running and delete it after.
+    """
+
+    def run(self, replicas, image, sleep_time=5, retries_total=30):
+        namespace = self._choose_namespace()
+        rc = self.generate_name()
+
+        # create
+        self.assertTrue(self.client.create_rc(rc, replicas=replicas,
+                                              image=image, namespace=namespace,
+                                              sleep_time=sleep_time,
+                                              retries_total=retries_total))
+
+        # cleanup
+        self.assertTrue(self.client.delete_rc(rc, namespace=namespace,
+                                              sleep_time=sleep_time,
+                                              retries_total=retries_total))

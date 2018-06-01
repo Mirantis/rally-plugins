@@ -36,9 +36,10 @@ Currently there are next services:
 
 Next scenarios are implemented in *rally-plugins*:
 
-- grafana check metric pushed from nova instance by pushgateway
-- grafana check metric pushed locally by pushgateway
-- elasticsearch check data about created nova instance stored
-- kubernetes create namespace and pod in them
+- grafana: check metric pushed from nova instance by pushgateway
+- grafana: check metric pushed locally by pushgateway
+- elasticsearch: check data about created nova instance stored
+- kubernetes: create namespace and namespaced pod and delete it then
+- kubernetes: create namespace and namespaced replication controller and delete it then
 
 For more details how to run and analyze tests, see `docs\source` directory. 

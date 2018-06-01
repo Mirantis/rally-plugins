@@ -42,14 +42,18 @@ There are next contexts for kubernetes tests:
 
 There are the following tasks:
 
-+-------------------------------+--------- -------------------------------------+
-| Task                          | Description                                   |
-+===============================+===============================================+
-| Kubernetes.run_namespaced_pod | Creates pod, wait until it won't be running,  |
-|                               | collect pod's phases info and delete the pod. |
-+-------------------------------+-----------------------------------------------+
++-------------------------------------------------+-----------------------------------------------+
+| Task                                            | Description                                   |
++=================================================+===============================================+
+| Kubernetes.run_namespaced_pod                   | Creates pod, wait until it won't be running,  |
+|                                                 | collect pod's phases info and delete the pod. |
++-------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_delete_replication_controller | Creates rc with number of replicas, wait      |
+|                                                 | until it won't be running and delete it.      |
++-------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
+
 
 Kubernetes.run_namespaced_pod
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -67,3 +71,36 @@ The task contains next args:
 +---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/run-namespaced-pods.yaml
+
+
+Kubernetes.create_delete_replication_controller
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in RC            |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| sleep_time    | number | sleep time between each two retries |
++---------------+--------+-------------------------------------+
+| retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-delete-replication-controller.yaml
+
