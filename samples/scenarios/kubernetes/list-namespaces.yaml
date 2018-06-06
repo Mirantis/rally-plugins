@@ -1,0 +1,18 @@
+---
+  Kubernetes.list_namespaces:
+  -
+    runner:
+      type: rps
+      times: 6
+      rps: 3
+    sla:
+      failure_rate:
+        max: 0
+  -
+    runner:
+      type: constant
+      times: 4
+      concurrency: 4
+    sla:
+      failure_rate:
+        max: 0

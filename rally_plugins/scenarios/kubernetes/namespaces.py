@@ -50,3 +50,11 @@ class NamespaceCreateDelete(common.KubernetesScenario, scenario.Scenario):
             retries_total=retries_total
         ))
 
+
+@scenario.configure(name="Kubernetes.list_namespaces", platform="kubernetes")
+class ListNamespaces(common.KubernetesScenario, scenario.Scenario):
+    """List cluster namespaces."""
+
+    def run(self):
+        """List cluster namespaces."""
+        self.assertTrue(self.client.list_namespaces())
