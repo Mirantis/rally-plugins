@@ -59,6 +59,9 @@ There are the following tasks:
 | Kubernetes.scale_replication_controller         | Scale rc with number of replicas, wait        |
 |                                                 | until it won't be running and revert scale it.|
 +-------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_delete_namespace              | Creates namespace with random name, wait      |
+|                                                 | until it won't be active and then delete it.  |
++-------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -113,7 +116,7 @@ To run the test, run next command:
   rally task start samples/scenarios/kubernetes/create-delete-replication-controller.yaml
 
 Kubernetes.scale_replication_controller
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The task contains next args:
 
@@ -134,3 +137,25 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/scale-replication-controller.yaml
+
+Kubernetes.create_delete_namespace
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
++---------------+--------+-------------------------------------+
+| sleep_time    | number | sleep time between each two retries |
++---------------+--------+-------------------------------------+
+| retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-delete-namespace.yaml
