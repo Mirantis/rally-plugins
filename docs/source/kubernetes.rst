@@ -32,13 +32,18 @@ After task is over, you can build report and results for further analyze.
 
 There are next contexts for kubernetes tests:
 
-+-----------------------+------------------------------+---------------------------------------+
-| Context               | Sample                       | Description                           |
-+=======================+==============================+=======================================+
-| kubernetes.namespaces | kubernetes.namespaces:       | Creates `count` number of namespaces  |
-|                       |   count: 3                   | and non-default service accounts with |
-|                       |   with_serviceaccount: yes   | tokens if necessary.                  |
-+-----------------------+------------------------------+---------------------------------------+
++------------------------------------+-------------------------------------+----------------------------------------+
+| Context                            | Sample                              | Description                            |
++====================================+=====================================+========================================+
+| kubernetes.namespaces              | kubernetes.namespaces:              | Creates `count` number of namespaces   |
+|                                    |   count: 3                          | and non-default service accounts with  |
+|                                    |   with_serviceaccount: yes          | tokens if necessary.                   |
++------------------------------------+-------------------------------------+----------------------------------------+
+| kubernetes.replication_controllers | kubernetes.replication_controllers: | Creates `count` number of replication  |
+|                                    |   replicas: 1                       | controllers and wait until they won't  |
+|                                    |   image: kubernetes/pause           | be ready.                              |
+|                                    |   rc_choice_method: round_robin     |                                        |
++------------------------------------+-------------------------------------+----------------------------------------+
 
 There are the following tasks:
 
@@ -50,6 +55,9 @@ There are the following tasks:
 +-------------------------------------------------+-----------------------------------------------+
 | Kubernetes.create_delete_replication_controller | Creates rc with number of replicas, wait      |
 |                                                 | until it won't be running and delete it.      |
++-------------------------------------------------+-----------------------------------------------+
+| Kubernetes.scale_replication_controller         | Scale rc with number of replicas, wait        |
+|                                                 | until it won't be running and revert scale it.|
 +-------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
@@ -104,3 +112,25 @@ To run the test, run next command:
 
   rally task start samples/scenarios/kubernetes/create-delete-replication-controller.yaml
 
+Kubernetes.scale_replication_controller
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas to scale         |
++---------------+--------+-------------------------------------+
+| sleep_time    | number | sleep time between each two retries |
++---------------+--------+-------------------------------------+
+| retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* type of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/scale-replication-controller.yaml

@@ -1,0 +1,23 @@
+---
+  Kubernetes.scale_replication_controller:
+  -
+    args:
+      replicas: 3
+      sleep_time: 1
+      retries_total: 50
+    runner:
+      type: constant
+      times: 4
+      concurrency: 4
+    context:
+      kubernetes.namespaces:
+        count: 4
+        with_serviceaccount: yes
+      kubernetes.replication_controllers:
+        count: 4
+        replicas: 1
+        image: kubernetes/pause
+        rc_choice_method: round_robin
+    sla:
+      failure_rate:
+        max: 0

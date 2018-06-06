@@ -296,6 +296,49 @@ class KubernetesService(service.Service):
                     return True
         return False
 
+    def get_rc_replicas(self, name, namespace):
+        """Util method for get RC's current number of replicas."""
+        resp = self.api.read_namespaced_replication_controller(
+            name=name, namespace=namespace)
+        return resp.spec.replicas
+
+    @atomic.action_timer("kube.scale_replication_controller")
+    def scale_rc(self, name, namespace, replicas, sleep_time=5,
+                 retries_total=30):
+        """Scale RC with number of replicas.
+
+        :param name: RC name
+        :param namespace: RC namespace
+        :param replicas: number of replicas RC scale to
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :returns True if scale successful and False otherwise
+        """
+        resp = self.api.patch_namespaced_replication_controller(
+            name=name,
+            namespace=namespace,
+            body={"spec": {"replicas": replicas}}
+        )
+        LOG.error("%s" % resp)
+        i = 0
+        LOG.debug("Wait until RC pods won't be ready")
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                resp = self.api.read_namespaced_replication_controller(
+                    name=name, namespace=namespace)
+            except Exception as ex:
+                LOG.warning("Unable to read RC status: %s" % ex.message)
+                i += 1
+                commonutils.interruptable_sleep(sleep_time)
+            else:
+                if resp.status.ready_replicas != resp.status.replicas:
+                    i += 1
+                    commonutils.interruptable_sleep(sleep_time)
+                else:
+                    return True
+        return False
+
     @atomic.action_timer("kube.delete_replication_controller")
     def delete_rc(self, name, namespace, sleep_time=5, retries_total=30):
         """Delete RC from namespace and wait until it won't be terminated.
