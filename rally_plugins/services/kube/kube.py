@@ -54,6 +54,36 @@ class KubernetesService(service.Service):
         self.api.create_namespace(body=manifest)
         LOG.info("Namespace %s created" % name)
 
+    @atomic.action_timer("successful_create_namespace")
+    def create_namespace_and_wait_active(self, name, sleep_time=5,
+                                         retries_total=30):
+        """Create namespace and wait until status phase won't be Active.
+
+        :param name: namespace name
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :return: True if create successful and False otherwise
+        """
+        self.create_namespace(name)
+
+        i = 0
+        LOG.debug("Wait until namespace status won't be active")
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                resp = self.api.read_namespace(name=name)
+            except Exception as ex:
+                LOG.warning("Unable to read namespace status: %s" % ex.message)
+                i += 1
+                commonutils.interruptable_sleep(sleep_time)
+            else:
+                if resp.status.phase != "Active":
+                    i += 1
+                    commonutils.interruptable_sleep(sleep_time)
+                else:
+                    return True
+        return False
+
     @atomic.action_timer("kube.create_serviceaccount")
     def create_serviceaccount(self, name, namespace):
         """ Create serviceaccount and token for namespace.
@@ -314,12 +344,11 @@ class KubernetesService(service.Service):
         :param retries_total: total number of retries
         :returns True if scale successful and False otherwise
         """
-        resp = self.api.patch_namespaced_replication_controller(
+        self.api.patch_namespaced_replication_controller(
             name=name,
             namespace=namespace,
             body={"spec": {"replicas": replicas}}
         )
-        LOG.error("%s" % resp)
         i = 0
         LOG.debug("Wait until RC pods won't be ready")
         while i < retries_total:
@@ -412,3 +441,26 @@ class KubernetesService(service.Service):
             "name": name,
             "status": resp.status
         })
+
+    @atomic.action_timer("kube.successful_delete_namespace")
+    def delete_namespace_and_wait_termination(self, name, sleep_time=5,
+                                              retries_total=30):
+        """Delete namespace and wait it's full termination.
+
+        :param name: namespace name
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :return: True if termination successful and False otherwise
+        """
+        self.delete_namespace(name)
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                self.api.read_namespace(name)
+            except Exception:
+                return True
+            else:
+                commonutils.interruptable_sleep(sleep_time)
+                i += 1
+        return False
