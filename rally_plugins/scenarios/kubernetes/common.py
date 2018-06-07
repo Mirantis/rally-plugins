@@ -40,13 +40,5 @@ class KubernetesScenario(scenario.Scenario):
             idx = idx % len(self.context["namespaces"])
             return self.context["namespaces"][idx]
 
-    def _choose_replication_controller(self):
-        if self.context["rc_choice_method"] == "random":
-            return random.choice(self.context["replication_controllers"])
-        elif self.context["rc_choice_method"] == "round_robin":
-            idx = (self.context["iteration"] - 1)
-            idx = idx % len(self.context["replication_controllers"])
-            return self.context["replication_controllers"][idx]
-
     def generate_name(self):
         return self.generate_random_name().replace('_', '-').lower()

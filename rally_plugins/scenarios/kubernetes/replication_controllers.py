@@ -57,25 +57,38 @@ class RCCreateAndDelete(common.KubernetesScenario, scenario.Scenario):
 class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
     """Kubernetes replication controller scale test.
 
-    Choose created replication controller, scale up it for number of replicas,
-    then scale down them.
+    Create replication controller, scale it with number of replicas,
+    scale it with original number of replicas, delete replication controller.
     """
 
-    def run(self, replicas, sleep_time=5, retries_total=30):
-        """ Choose replication controller, scale for number of replicas.
+    def run(self, image, replicas, scale_replicas, sleep_time=5,
+            retries_total=30):
+        """Create RC, scale for number of replicas and then delete it.
 
-        :param replicas: number of replicas to scale
+        :param image: RC pod template image
+        :param replicas: original number of replicas
+        :param scale_replicas: number of replicas to scale
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
         """
-        rc, namespace = self._choose_replication_controller()
-        old_replicas = self.client.get_rc_replicas(rc, namespace=namespace)
+        rc = self.generate_name()
+        namespace = self._choose_namespace()
 
-        # scale RC
-        self.assertTrue(self.client.scale_rc(
+        # create
+        self.assertTrue(self.client.create_rc(
             rc,
             namespace=namespace,
             replicas=replicas,
+            image=image,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        # scale
+        self.assertTrue(self.client.scale_rc(
+            rc,
+            namespace=namespace,
+            replicas=scale_replicas,
             sleep_time=sleep_time,
             retries_total=retries_total
         ))
@@ -85,8 +98,16 @@ class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
         self.assertTrue(self.client.scale_rc(
             rc,
             namespace=namespace,
-            replicas=old_replicas,
+            replicas=replicas,
             sleep_time=sleep_time,
             retries_total=retries_total
         ))
         LOG.debug("RC %s revert scale succeeded" % rc)
+
+        # delete
+        self.assertTrue(self.client.delete_rc(
+            rc,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))

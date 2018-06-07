@@ -117,17 +117,21 @@ Kubernetes.scale_replication_controller
 
 The task contains next args:
 
-+---------------+--------+-------------------------------------+
-| Argument      | Type   | Description                         |
-+===============+========+=====================================+
-| replicas      | number | number of replicas to scale         |
-+---------------+--------+-------------------------------------+
-| sleep_time    | number | sleep time between each two retries |
-+---------------+--------+-------------------------------------+
-| retries_total | number | total number of retries             |
-+---------------+--------+-------------------------------------+
++----------------+--------+-------------------------------------+
+| Argument       | Type   | Description                         |
++================+========+=====================================+
+| replicas       | number | original number of replicas         |
++----------------+--------+-------------------------------------+
+| scale_replicas | number | number of replicas to scale         |
++----------------+--------+-------------------------------------+
+| image          | number | replication controller image        |
++----------------+--------+-------------------------------------+
+| sleep_time     | number | sleep time between each two retries |
++----------------+--------+-------------------------------------+
+| retries_total  | number | total number of retries             |
++----------------+--------+-------------------------------------+
 
-The task supports *constant* type of scenario runner.
+The task supports *constant* and *rps* types of scenario runner.
 
 To run the test, run next command:
 
