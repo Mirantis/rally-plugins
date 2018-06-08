@@ -368,6 +368,15 @@ class KubernetesService(service.Service):
                     return True
         return False
 
+    @atomic.action_timer("kube.list_namespaces")
+    def list_namespaces(self):
+        """List namespaces."""
+        try:
+            self.api.list_namespace()
+        except Exception:
+            return False
+        return True
+
     @atomic.action_timer("kube.delete_replication_controller")
     def delete_rc(self, name, namespace, sleep_time=5, retries_total=30):
         """Delete RC from namespace and wait until it won't be terminated.

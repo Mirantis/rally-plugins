@@ -62,6 +62,8 @@ There are the following tasks:
 | Kubernetes.create_delete_namespace              | Creates namespace with random name, wait      |
 |                                                 | until it won't be active and then delete it.  |
 +-------------------------------------------------+-----------------------------------------------+
+| Kubernetes.list_namespaces                      | List cluster namespaces.                      |
++-------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -150,7 +152,6 @@ The task contains next args:
 +---------------+--------+-------------------------------------+
 | Argument      | Type   | Description                         |
 +===============+========+=====================================+
-+---------------+--------+-------------------------------------+
 | sleep_time    | number | sleep time between each two retries |
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
@@ -163,3 +164,16 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-delete-namespace.yaml
+
+Kubernetes.list_namespaces
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task has no args.
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/list-namespaces.yaml
