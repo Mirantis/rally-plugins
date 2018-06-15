@@ -42,23 +42,30 @@ There are next contexts for kubernetes tests:
 
 There are the following tasks:
 
-+-------------------------------------------------+-----------------------------------------------+
-| Task                                            | Description                                   |
-+=================================================+===============================================+
-| Kubernetes.run_namespaced_pod                   | Creates pod, wait until it won't be running,  |
-|                                                 | collect pod's phases info and delete the pod. |
-+-------------------------------------------------+-----------------------------------------------+
-| Kubernetes.create_delete_replication_controller | Creates rc with number of replicas, wait      |
-|                                                 | until it won't be running and delete it.      |
-+-------------------------------------------------+-----------------------------------------------+
-| Kubernetes.scale_replication_controller         | Scale rc with number of replicas, wait        |
-|                                                 | until it won't be running and revert scale it.|
-+-------------------------------------------------+-----------------------------------------------+
-| Kubernetes.create_delete_namespace              | Creates namespace with random name, wait      |
-|                                                 | until it won't be active and then delete it.  |
-+-------------------------------------------------+-----------------------------------------------+
-| Kubernetes.list_namespaces                      | List cluster namespaces.                      |
-+-------------------------------------------------+-----------------------------------------------+
++----------------------------------------------------+-----------------------------------------------+
+| Task                                               | Description                                   |
++===================-================================+===============================================+
+| Kubernetes.run_namespaced_pod                      | Creates pod, wait until it won't be running,  |
+|                                                    | collect pod's phases info and delete the pod. |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_delete_replication_controller    | Creates rc with number of replicas, wait      |
+|                                                    | until it won't be running and delete it.      |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.scale_replication_controller            | Scale rc with number of replicas, wait        |
+|                                                    | until it won't be running and revert scale it.|
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_delete_namespace                 | Creates namespace with random name, wait      |
+|                                                    | until it won't be active and then delete it.  |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.list_namespaces                         | List cluster namespaces.                      |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_emptydir_volume       | Create pod with emptyDir volume, wait until   |
+|                                                    | it won't be running and delete pod then.      |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_emptydir_volume | Create pod with emptyDir volume, wait until   |
+|                                                    | it won't be running, exec pod with check_cmd  |
+|                                                    | and delete pod then.                          |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -172,3 +179,56 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/list-namespaces.yaml
+
+Kubernetes.create_and_delete_emptydir_volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in pod's manifest        |
++---------------+--------+-------------------------------------+
+| mount_path    | string | path to mount volume in pod         |
++---------------+--------+-------------------------------------+
+| sleep_time    | number | sleep time between each two retries |
++---------------+--------+-------------------------------------+
+| retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-emptydir-volume.yaml
+
+Kubernetes.create_check_and_delete_emptydir_volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in pod's manifest        |
++---------------+--------+-------------------------------------+
+| mount_path    | string | path to mount volume in pod         |
++---------------+--------+-------------------------------------+
+| check_cmd     | array  | array of strings, which represents  |
+|               |        | check command to exec in pod        |
++---------------+--------+-------------------------------------+
+| sleep_time    | number | sleep time between each two retries |
++---------------+--------+-------------------------------------+
+| retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-emptydir-volume.yaml

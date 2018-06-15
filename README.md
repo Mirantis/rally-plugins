@@ -40,6 +40,13 @@ Next scenarios are implemented in *rally-plugins*:
 - grafana: check metric pushed locally by pushgateway
 - elasticsearch: check data about created nova instance stored
 - kubernetes: create namespace and namespaced pod and delete it then
-- kubernetes: create namespace and namespaced replication controller and delete it then
+- kubernetes: create namespace and namespaced replication controller and
+  delete it then
+- kubernetes: list namespaces
+- kubernetes: create namespace and delete it then
+- kubernetes: create namespace and namespaced pod with emptyDir volume and
+  delete it then
+- kubernetes: create namespace and namespaced pod with emptyDir volume, check
+  it with check command and delete it then
 
 For more details how to run and analyze tests, see `docs\source` directory. 
