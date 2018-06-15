@@ -16,6 +16,7 @@ import time
 from kubernetes import config
 from kubernetes import client
 from kubernetes.client.apis import core_v1_api
+from kubernetes.stream import stream
 from rally.common import logging
 from rally.common import utils as commonutils
 from rally.task import atomic
@@ -32,6 +33,7 @@ class KubernetesService(service.Service):
                                                 atomic_inst=atomic_inst)
         self._spec = spec
         apiclient = config.new_client_from_config(spec.get("config_file"))
+        apiclient.configuration.assert_hostname = False
         self.api = core_v1_api.CoreV1Api(api_client=apiclient)
         self.events = []
 
@@ -92,14 +94,14 @@ class KubernetesService(service.Service):
         :param namespace: namespace where sa should be created.
         """
         sa_manifest = {
-           "apiVersion": "v1",
-           "kind": "ServiceAccount",
-           "metadata": {
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {
                 "name": name,
                 "labels": {
                     "role": "rally-test"
                 }
-           }
+            }
         }
         self.api.create_namespaced_service_account(namespace=namespace,
                                                    body=sa_manifest)
@@ -123,6 +125,7 @@ class KubernetesService(service.Service):
 
     def _update_pod_stats(self, name, conditions):
         """Method for collecting pods statuses: inited, scheduled, ready."""
+
         def to_time(dt):
             return time.mktime(dt)
 
@@ -473,3 +476,97 @@ class KubernetesService(service.Service):
                 commonutils.interruptable_sleep(sleep_time)
                 i += 1
         return False
+
+    @atomic.action_timer("kube.create_volume_pod")
+    def create_volume_pod(self, name, image, mount_path, namespace):
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "spec": {
+                "serviceAccountName": namespace,
+                "containers": [
+                    {
+                        "name": name,
+                        "image": image,
+                        "volumeMounts": [
+                            {
+                                "mountPath": mount_path,
+                                "name": "%s-volume" % name
+                            }
+                        ]
+                    }
+                ],
+                "volumes": [
+                    {
+                        "name": "%s-volume" % name,
+                        "emptyDir": {}
+                    }
+                ]
+            }
+        }
+
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["serviceAccountName"]
+
+        resp = self.api.create_namespaced_pod(body=manifest,
+                                              namespace=namespace)
+        LOG.info("Pod %(name)s created. Status: %(status)s" % {
+            "name": name,
+            "status": resp.status.phase
+        })
+
+    @atomic.action_timer("kube.create_volume_pod_and_wait_running")
+    def create_volume_pod_and_wait_running(self, name, image, mount_path,
+                                           namespace, sleep_time,
+                                           retries_total):
+        self.create_volume_pod(
+            name,
+            image=image,
+            mount_path=mount_path,
+            namespace=namespace
+        )
+
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            resp = self.api.read_namespaced_pod_status(name,
+                                                       namespace=namespace)
+
+            if resp.status.phase == "Running":
+                return True
+            else:
+                if not ((resp.status.container_statuses is None) or
+                        resp.status.container_statuses[0].state.waiting
+                        is None):
+                    state = resp.status.container_statuses[
+                        0].state.waiting.reason
+                    if state == "CreateContainerError":
+                        return False
+                i += 1
+                commonutils.interruptable_sleep(sleep_time)
+        return False
+
+    @atomic.action_timer("kube.check_volume_pod_existence")
+    def check_volume_pod_existence(self, name, namespace, check_cmd):
+        resp = stream(
+            self.api.connect_get_namespaced_pod_exec,
+            name,
+            namespace=namespace,
+            command=check_cmd,
+            stderr=True, stdin=False,
+            stdout=True, tty=False)
+
+        if "exec failed" in resp:
+            LOG.error("Volume check failed with error: %s" % resp)
+            return False
+        elif "No such file or directory" in resp:
+            LOG.error("Volume not found in pod: %s" % resp)
+            return False
+        LOG.info("Volume exists and return next response: '%s'" % resp)
+        return True
