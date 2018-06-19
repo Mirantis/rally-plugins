@@ -712,3 +712,112 @@ class KubernetesService(service.Service):
             i += 1
             commonutils.interruptable_sleep(sleep_time)
         return False
+
+    @atomic.action_timer("kube.create_hostpath_volume_pod")
+    def create_hostpath_volume_pod(self, name, image, mount_path, volume_type,
+                                   volume_path, namespace):
+        """Create pod with hostPath volume.
+
+        :param name: pod's name
+        :param image: pod's image
+        :param mount_path: pod's mount path of volume
+        :param volume_path: hostPath volume path in host
+        :param volume_type: hostPath type according to Kubernetes docs
+        :param namespace: pod's namespace
+        """
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "spec": {
+                "serviceAccountName": namespace,
+                "containers": [
+                    {
+                        "name": name,
+                        "image": image,
+                        "volumeMounts": [
+                            {
+                                "mountPath": mount_path,
+                                "name": "%s-volume" % name
+                            }
+                        ]
+                    }
+                ],
+                "volumes": [
+                    {
+                        "name": "%s-volume" % name,
+                        "hostPath": {
+                            "path": volume_path,
+                            "type": volume_type
+                        }
+                    }
+                ]
+            }
+        }
+
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["serviceAccountName"]
+
+        resp = self.api.create_namespaced_pod(body=manifest,
+                                              namespace=namespace)
+        LOG.info("Pod %(name)s created. Status: %(status)s" % {
+            "name": name,
+            "status": resp.status.phase
+        })
+
+    @atomic.action_timer("kube.create_hostpath_volume_pod_and_wait_running")
+    def create_hostpath_volume_pod_and_wait_running(self, name, image,
+                                                    mount_path,
+                                                    volume_path, volume_type,
+                                                    namespace, sleep_time,
+                                                    retries_total):
+        """Create pod with secret volume, wait for running status.
+
+        :param name: pod's name
+        :param image: pod's image
+        :param mount_path: pod's mount path of volume
+        :param volume_path: hostPath volume path in host
+        :param volume_type: hostPath type according to Kubernetes docs
+        :param namespace: pod's namespace
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :return: True if wait for running status successful and False otherwise
+        """
+        self.create_hostpath_volume_pod(
+            name,
+            image=image,
+            mount_path=mount_path,
+            volume_type=volume_type,
+            volume_path=volume_path,
+            namespace=namespace
+        )
+
+        i = 0
+        flag = False
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            resp = self.api.read_namespaced_pod_status(name,
+                                                       namespace=namespace)
+
+            if resp.status.phase == "Running":
+                return True
+            elif not flag:
+                e_list = self.api.list_namespaced_event(namespace=namespace)
+                for item in e_list.items:
+                    if item.metadata.name.startswith(name):
+                        if item.reason == "CreateContainerError":
+                            LOG.error("Volume failed to mount to pod")
+                            return False
+                        elif (item.reason == "SuccessfulMountVolume" and
+                              ("%s-volume" % name) in item.message):
+                            LOG.info("Volume %s-volume successfully mount to "
+                                     "pod %s" % (name, name))
+                            flag = True
+            i += 1
+            commonutils.interruptable_sleep(sleep_time)
+        return False

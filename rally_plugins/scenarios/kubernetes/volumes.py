@@ -172,3 +172,88 @@ class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
             sleep_time=sleep_time,
             retries_total=retries_total
         ))
+
+
+@scenario.configure(name="Kubernetes.create_and_delete_hostpath_volume",
+                    platform="kubernetes")
+class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
+
+    def run(self, image, mount_path, volume_path, volume_type, sleep_time,
+            retries_total):
+        """Create pod with hostPath volume, wait for status and delete it then.
+
+        :param image: pod's image
+        :param mount_path: path to mount volume in pod
+        :param volume_path: hostPath volume path in host
+        :param volume_type: hostPath type according to Kubernetes docs
+        :param sleep_time: poll interval between each two retries
+        :param retries_total: number of total retries of reading status
+        """
+        name = self.generate_name()
+        namespace = self._choose_namespace()
+
+        self.assertTrue(
+            self.client.create_hostpath_volume_pod_and_wait_running(
+                name,
+                image=image,
+                mount_path=mount_path,
+                volume_path=volume_path,
+                volume_type=volume_type,
+                namespace=namespace,
+                sleep_time=sleep_time,
+                retries_total=retries_total
+            )
+        )
+
+        self.assertTrue(self.client.delete_pod(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+
+@scenario.configure(name="Kubernetes.create_check_and_delete_hostpath_volume",
+                    platform="kubernetes")
+class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
+
+    def run(self, image, mount_path, volume_path, volume_type, check_cmd,
+            sleep_time, retries_total):
+        """Create pod with hostPath volume, wait for status and delete it then.
+
+        :param image: pod's image
+        :param mount_path: path to mount volume in pod
+        :param volume_path: hostPath volume path in host
+        :param volume_type: hostPath type according to Kubernetes docs
+        :param check_cmd: check command to exec in pod
+        :param sleep_time: poll interval between each two retries
+        :param retries_total: number of total retries of reading status
+        """
+        name = self.generate_name()
+        namespace = self._choose_namespace()
+
+        self.assertTrue(
+            self.client.create_hostpath_volume_pod_and_wait_running(
+                name,
+                image=image,
+                mount_path=mount_path,
+                volume_path=volume_path,
+                volume_type=volume_type,
+                namespace=namespace,
+                sleep_time=sleep_time,
+                retries_total=retries_total
+            )
+        )
+
+        self.assertTrue(self.client.check_volume_pod_existence(
+            name,
+            namespace=namespace,
+            check_cmd=check_cmd
+        ))
+
+        self.assertTrue(self.client.delete_pod(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
