@@ -39,11 +39,6 @@ There are next contexts for kubernetes tests:
 |                                    |   count: 3                          | and non-default service accounts with  |
 |                                    |   with_serviceaccount: yes          | tokens if necessary.                   |
 +------------------------------------+-------------------------------------+----------------------------------------+
-| kubernetes.replication_controllers | kubernetes.replication_controllers: | Creates `count` number of replication  |
-|                                    |   replicas: 1                       | controllers and wait until they won't  |
-|                                    |   image: kubernetes/pause           | be ready.                              |
-|                                    |   rc_choice_method: round_robin     |                                        |
-+------------------------------------+-------------------------------------+----------------------------------------+
 
 There are the following tasks:
 
