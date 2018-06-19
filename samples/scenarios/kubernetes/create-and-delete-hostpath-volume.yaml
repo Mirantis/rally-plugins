@@ -1,0 +1,40 @@
+---
+  Kubernetes.create_and_delete_hostpath_volume:
+  -
+    args:
+      image: kubernetes/pause
+      mount_path: /var/log
+      volume_type: Directory
+      volume_path: /var/log/
+      sleep_time: 1
+      retries_total: 40
+    runner:
+      type: constant
+      concurrency: 2
+      times: 10
+    context:
+      kubernetes.namespaces:
+        count: 3
+        with_serviceaccount: yes
+    sla:
+      failure_rate:
+        max: 0
+  -
+    args:
+      image: kubernetes/pause
+      mount_path: /var/log
+      volume_type: Directory
+      volume_path: /var/log/
+      sleep_time: 1
+      retries_total: 40
+    runner:
+      type: rps
+      rps: 2
+      times: 10
+    context:
+      kubernetes.namespaces:
+        count: 3
+        with_serviceaccount: yes
+    sla:
+      failure_rate:
+        max: 0
