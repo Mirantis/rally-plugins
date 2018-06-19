@@ -48,5 +48,9 @@ Next scenarios are implemented in *rally-plugins*:
   delete it then
 - kubernetes: create namespace and namespaced pod with emptyDir volume, check
   it with check command and delete it then
-
+- kubernetes: create namespace, create secret and namespaced pod with secret
+  volume and delete it then
+- kubernetes: create namespace, create secret and namespaced pod with secret
+  volume, check it with check command and delete it then
+  
 For more details how to run and analyze tests, see `docs\source` directory. 
