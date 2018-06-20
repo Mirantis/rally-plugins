@@ -44,7 +44,7 @@ There are the following tasks:
 
 +----------------------------------------------------+-----------------------------------------------+
 | Task                                               | Description                                   |
-+===================-================================+===============================================+
++====================================================+===============================================+
 | Kubernetes.run_namespaced_pod                      | Creates pod, wait until it won't be running,  |
 |                                                    | collect pod's phases info and delete the pod. |
 +----------------------------------------------------+-----------------------------------------------+
@@ -98,6 +98,9 @@ The task contains next args:
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
 +---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
 
@@ -123,6 +126,9 @@ The task contains next args:
 | sleep_time    | number | sleep time between each two retries |
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
 +---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
@@ -151,6 +157,9 @@ The task contains next args:
 +----------------+--------+-------------------------------------+
 | retries_total  | number | total number of retries             |
 +----------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
 
 The task supports *constant* and *rps* types of scenario runner.
 
@@ -210,6 +219,9 @@ The task contains next args:
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
 +---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
 
@@ -238,6 +250,9 @@ The task contains next args:
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
 +---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
 
@@ -262,6 +277,9 @@ The task contains next args:
 | sleep_time    | number | sleep time between each two retries |
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
 +---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
@@ -291,6 +309,9 @@ The task contains next args:
 +---------------+--------+-------------------------------------+
 | retries_total | number | total number of retries             |
 +---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
 
@@ -319,6 +340,9 @@ The task contains next args:
 | sleep_time    | number | sleep time between each two retries    |
 +---------------+--------+----------------------------------------+
 | retries_total | number | total number of retries                |
++---------------+--------+----------------------------------------+
+| command       | array  | array of strings representing          |
+|               |        | container command, default is None     |
 +---------------+--------+----------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.
@@ -351,6 +375,9 @@ The task contains next args:
 | sleep_time    | number | sleep time between each two retries    |
 +---------------+--------+----------------------------------------+
 | retries_total | number | total number of retries                |
++---------------+--------+----------------------------------------+
+| command       | array  | array of strings representing          |
+|               |        | container command, default is None     |
 +---------------+--------+----------------------------------------+
 
 The task supports *rps* and *constant* types of scenario runner.

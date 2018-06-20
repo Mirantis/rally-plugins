@@ -42,12 +42,13 @@ class NamespacedPodPlugin(common.KubernetesScenario, scenario.Scenario):
             data[state_map[e["name"]]] = [e["name"], duration]
         return data
 
-    def run(self, image, sleep_time=5, retries_total=30):
+    def run(self, image, sleep_time=5, retries_total=30, command=None):
         """Create pod and then delete it.
 
         :param image: image used in pods manifests
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         """
         namespace = self._choose_namespace()
         pod = self.generate_name()
@@ -56,7 +57,8 @@ class NamespacedPodPlugin(common.KubernetesScenario, scenario.Scenario):
         self.assertTrue(self.client.create_pod(pod, image=image,
                                                namespace=namespace,
                                                sleep_time=sleep_time,
-                                               retries_total=retries_total))
+                                               retries_total=retries_total,
+                                               command=command))
 
         # cleanup
         self.assertTrue(self.client.delete_pod(pod, namespace=namespace,

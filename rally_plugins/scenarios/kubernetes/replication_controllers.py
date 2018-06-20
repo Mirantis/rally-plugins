@@ -29,13 +29,15 @@ class RCCreateAndDelete(common.KubernetesScenario, scenario.Scenario):
     replicas, wait until it won't be running and delete it after.
     """
 
-    def run(self, replicas, image, sleep_time=5, retries_total=30):
+    def run(self, replicas, image, sleep_time=5, retries_total=30,
+            command=None):
         """Create and delete replication controller.
 
         :param replicas: number of replicas for RC
         :param image: RC image
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         """
         namespace = self._choose_namespace()
         rc = self.generate_name()
@@ -44,7 +46,8 @@ class RCCreateAndDelete(common.KubernetesScenario, scenario.Scenario):
         self.assertTrue(self.client.create_rc(rc, replicas=replicas,
                                               image=image, namespace=namespace,
                                               sleep_time=sleep_time,
-                                              retries_total=retries_total))
+                                              retries_total=retries_total,
+                                              command=command))
 
         # cleanup
         self.assertTrue(self.client.delete_rc(rc, namespace=namespace,
@@ -62,7 +65,7 @@ class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
     """
 
     def run(self, image, replicas, scale_replicas, sleep_time=5,
-            retries_total=30):
+            retries_total=30, command=None):
         """Create RC, scale for number of replicas and then delete it.
 
         :param image: RC pod template image
@@ -70,6 +73,7 @@ class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
         :param scale_replicas: number of replicas to scale
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         """
         rc = self.generate_name()
         namespace = self._choose_namespace()
@@ -81,7 +85,8 @@ class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
             replicas=replicas,
             image=image,
             sleep_time=sleep_time,
-            retries_total=retries_total
+            retries_total=retries_total,
+            command=command
         ))
 
         # scale

@@ -24,13 +24,14 @@ LOG = logging.getLogger(__name__)
                     platform="kubernetes")
 class CreateAndDeleteEmptyDirVolume(common.KubernetesScenario):
 
-    def run(self, image, mount_path, sleep_time, retries_total):
+    def run(self, image, mount_path, sleep_time, retries_total, command=None):
         """Create pod with emptyDir volume, wait it readiness and delete then.
 
         :param image: pod's image
         :param mount_path: path to mount volume in pod
         :param sleep_time: poll interval between each two retries
         :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
         """
         name = self.generate_name()
         namespace = self._choose_namespace()
@@ -42,7 +43,8 @@ class CreateAndDeleteEmptyDirVolume(common.KubernetesScenario):
                 mount_path=mount_path,
                 namespace=namespace,
                 sleep_time=sleep_time,
-                retries_total=retries_total
+                retries_total=retries_total,
+                command=command
             )
         )
 
@@ -58,7 +60,8 @@ class CreateAndDeleteEmptyDirVolume(common.KubernetesScenario):
                     platform="kubernetes")
 class CreateCheckDeleteEmptyDirVolume(common.KubernetesScenario):
 
-    def run(self, image, mount_path, check_cmd, sleep_time, retries_total):
+    def run(self, image, mount_path, check_cmd, sleep_time, retries_total,
+            command=None):
         """Create pod with emptyDir volume, wait it readiness and delete then.
 
         :param image: pod's image
@@ -66,6 +69,7 @@ class CreateCheckDeleteEmptyDirVolume(common.KubernetesScenario):
         :param check_cmd: check command to exec in pod
         :param sleep_time: poll interval between each two retries
         :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
         """
         name = self.generate_name()
         namespace = self._choose_namespace()
@@ -77,7 +81,8 @@ class CreateCheckDeleteEmptyDirVolume(common.KubernetesScenario):
                 mount_path=mount_path,
                 namespace=namespace,
                 sleep_time=sleep_time,
-                retries_total=retries_total
+                retries_total=retries_total,
+                command=command
             )
         )
 
@@ -99,13 +104,14 @@ class CreateCheckDeleteEmptyDirVolume(common.KubernetesScenario):
                     platform="kubernetes")
 class CreateAndDeleteSecretVolume(common.KubernetesScenario):
 
-    def run(self, image, mount_path, sleep_time, retries_total):
+    def run(self, image, mount_path, sleep_time, retries_total, command=None):
         """Create secret, create pod with it, wait for status and delete then.
 
         :param image: pod's image
         :param mount_path: path to mount volume in pod
         :param sleep_time: poll interval between each two retries
         :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
         """
         name = self.generate_name()
         namespace = self._choose_namespace()
@@ -119,7 +125,8 @@ class CreateAndDeleteSecretVolume(common.KubernetesScenario):
                 mount_path=mount_path,
                 namespace=namespace,
                 sleep_time=sleep_time,
-                retries_total=retries_total
+                retries_total=retries_total,
+                command=command
             )
         )
 
@@ -135,7 +142,8 @@ class CreateAndDeleteSecretVolume(common.KubernetesScenario):
                     platform="kubernetes")
 class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
 
-    def run(self, image, mount_path, check_cmd, sleep_time, retries_total):
+    def run(self, image, mount_path, check_cmd, sleep_time, retries_total,
+            command=None):
         """Create pod with secret volume, wait it readiness and delete then.
 
         :param image: pod's image
@@ -143,6 +151,7 @@ class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
         :param check_cmd: check command to exec in pod
         :param sleep_time: poll interval between each two retries
         :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
         """
         name = self.generate_name()
         namespace = self._choose_namespace()
@@ -156,7 +165,8 @@ class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
                 mount_path=mount_path,
                 namespace=namespace,
                 sleep_time=sleep_time,
-                retries_total=retries_total
+                retries_total=retries_total,
+                command=command
             )
         )
 
@@ -179,7 +189,7 @@ class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
 class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
 
     def run(self, image, mount_path, volume_path, volume_type, sleep_time,
-            retries_total):
+            retries_total, command=None):
         """Create pod with hostPath volume, wait for status and delete it then.
 
         :param image: pod's image
@@ -188,6 +198,7 @@ class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
         :param volume_type: hostPath type according to Kubernetes docs
         :param sleep_time: poll interval between each two retries
         :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
         """
         name = self.generate_name()
         namespace = self._choose_namespace()
@@ -201,7 +212,8 @@ class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
                 volume_type=volume_type,
                 namespace=namespace,
                 sleep_time=sleep_time,
-                retries_total=retries_total
+                retries_total=retries_total,
+                command=command
             )
         )
 
@@ -218,7 +230,7 @@ class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
 class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
 
     def run(self, image, mount_path, volume_path, volume_type, check_cmd,
-            sleep_time, retries_total):
+            sleep_time, retries_total, command=None):
         """Create pod with hostPath volume, wait for status and delete it then.
 
         :param image: pod's image
@@ -228,6 +240,7 @@ class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
         :param check_cmd: check command to exec in pod
         :param sleep_time: poll interval between each two retries
         :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
         """
         name = self.generate_name()
         namespace = self._choose_namespace()
@@ -241,7 +254,8 @@ class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
                 volume_type=volume_type,
                 namespace=namespace,
                 sleep_time=sleep_time,
-                retries_total=retries_total
+                retries_total=retries_total,
+                command=command
             )
         )
 

@@ -183,7 +183,7 @@ class KubernetesService(service.Service):
 
     @atomic.action_timer("kube.create_pod")
     def create_pod(self, name, image, namespace, sleep_time=5,
-                   retries_total=30):
+                   retries_total=30, command=None):
         """Create pod in defined namespace.
 
         :param name: pod's name
@@ -191,8 +191,16 @@ class KubernetesService(service.Service):
         :param namespace: defined namespace to create pod in
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         :return: True if create started and False otherwise
         """
+        container_spec = {
+            "name": name,
+            "image": image
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
         manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -204,12 +212,7 @@ class KubernetesService(service.Service):
             },
             "spec": {
                 "serviceAccountName": namespace,
-                "containers": [
-                    {
-                        "name": name,
-                        "image": image
-                    }
-                ]
+                "containers": [container_spec]
             }
         }
 
@@ -260,7 +263,7 @@ class KubernetesService(service.Service):
 
     @atomic.action_timer("kube.create_replication_controller")
     def create_rc(self, name, replicas, image, namespace, sleep_time=5,
-                  retries_total=30):
+                  retries_total=30, command=None):
         """Create RC and wait until it won't be running.
 
         :param name: replication controller name
@@ -269,10 +272,19 @@ class KubernetesService(service.Service):
         :param namespace: replication controller namespace
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         :return: True if create finished successfully and False otherwise
         """
 
         app = self.generate_random_name().replace("_", "-").lower()
+
+        container_spec = {
+            "name": name,
+            "image": image
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
         manifest = {
             "apiVersion": "v1",
             "kind": "ReplicationController",
@@ -293,12 +305,7 @@ class KubernetesService(service.Service):
                     },
                     "spec": {
                         "serviceAccountName": namespace,
-                        "containers": [
-                            {
-                                "name": name,
-                                "image": image
-                            }
-                        ]
+                        "containers": [container_spec]
                     }
                 }
             }
@@ -494,14 +501,29 @@ class KubernetesService(service.Service):
         return False
 
     @atomic.action_timer("kube.create_emptydir_volume_pod")
-    def create_emptydir_volume_pod(self, name, image, mount_path, namespace):
+    def create_emptydir_volume_pod(self, name, image, mount_path, namespace,
+                                   command=None):
         """Create pod with emptyDir volume.
 
         :param name: pod's name
         :param image: pod's image
         :param mount_path: pod's mount path of volume
         :param namespace: pod's namespace
+        :param command: array of strings representing container command
         """
+        container_spec = {
+            "name": name,
+            "image": image,
+            "volumeMounts": [
+                {
+                    "mountPath": mount_path,
+                    "name": "%s-volume" % name
+                }
+            ]
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
         manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -513,18 +535,7 @@ class KubernetesService(service.Service):
             },
             "spec": {
                 "serviceAccountName": namespace,
-                "containers": [
-                    {
-                        "name": name,
-                        "image": image,
-                        "volumeMounts": [
-                            {
-                                "mountPath": mount_path,
-                                "name": "%s-volume" % name
-                            }
-                        ]
-                    }
-                ],
+                "containers": [container_spec],
                 "volumes": [
                     {
                         "name": "%s-volume" % name,
@@ -548,7 +559,8 @@ class KubernetesService(service.Service):
     def create_emptydir_volume_pod_and_wait_running(self, name, image,
                                                     mount_path,
                                                     namespace, sleep_time,
-                                                    retries_total):
+                                                    retries_total,
+                                                    command=None):
         """Create pod with emptyDir volume, wait for running status.
 
         :param name: pod's name
@@ -557,13 +569,15 @@ class KubernetesService(service.Service):
         :param namespace: pod's namespace
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         :return: True if wait for running status successful and False otherwise
         """
         self.create_emptydir_volume_pod(
             name,
             image=image,
             mount_path=mount_path,
-            namespace=namespace
+            namespace=namespace,
+            command=command
         )
 
         i = 0
@@ -614,14 +628,29 @@ class KubernetesService(service.Service):
         return True
 
     @atomic.action_timer("kube.create_secret_volume_pod")
-    def create_secret_volume_pod(self, name, image, mount_path, namespace):
+    def create_secret_volume_pod(self, name, image, mount_path, namespace,
+                                 command=None):
         """Create pod with secret volume.
 
         :param name: pod's name
         :param image: pod's image
         :param mount_path: pod's mount path of volume
         :param namespace: pod's namespace
+        :param command: array of strings representing container command
         """
+        container_spec = {
+            "name": name,
+            "image": image,
+            "volumeMounts": [
+                {
+                    "mountPath": mount_path,
+                    "name": "%s-volume" % name
+                }
+            ]
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
         manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -633,18 +662,7 @@ class KubernetesService(service.Service):
             },
             "spec": {
                 "serviceAccountName": namespace,
-                "containers": [
-                    {
-                        "name": name,
-                        "image": image,
-                        "volumeMounts": [
-                            {
-                                "mountPath": mount_path,
-                                "name": "%s-volume" % name
-                            }
-                        ]
-                    }
-                ],
+                "containers": [container_spec],
                 "volumes": [
                     {
                         "name": "%s-volume" % name,
@@ -670,7 +688,8 @@ class KubernetesService(service.Service):
     def create_secret_volume_pod_and_wait_running(self, name, image,
                                                   mount_path,
                                                   namespace, sleep_time,
-                                                  retries_total):
+                                                  retries_total,
+                                                  command=None):
         """Create pod with secret volume, wait for running status.
 
         :param name: pod's name
@@ -679,13 +698,15 @@ class KubernetesService(service.Service):
         :param namespace: pod's namespace
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         :return: True if wait for running status successful and False otherwise
         """
         self.create_secret_volume_pod(
             name,
             image=image,
             mount_path=mount_path,
-            namespace=namespace
+            namespace=namespace,
+            command=command
         )
 
         i = 0
@@ -715,7 +736,7 @@ class KubernetesService(service.Service):
 
     @atomic.action_timer("kube.create_hostpath_volume_pod")
     def create_hostpath_volume_pod(self, name, image, mount_path, volume_type,
-                                   volume_path, namespace):
+                                   volume_path, namespace, command=None):
         """Create pod with hostPath volume.
 
         :param name: pod's name
@@ -724,7 +745,21 @@ class KubernetesService(service.Service):
         :param volume_path: hostPath volume path in host
         :param volume_type: hostPath type according to Kubernetes docs
         :param namespace: pod's namespace
+        :param command: array of strings representing container command
         """
+        container_spec = {
+            "name": name,
+            "image": image,
+            "volumeMounts": [
+                {
+                    "mountPath": mount_path,
+                    "name": "%s-volume" % name
+                }
+            ]
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
         manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -736,18 +771,7 @@ class KubernetesService(service.Service):
             },
             "spec": {
                 "serviceAccountName": namespace,
-                "containers": [
-                    {
-                        "name": name,
-                        "image": image,
-                        "volumeMounts": [
-                            {
-                                "mountPath": mount_path,
-                                "name": "%s-volume" % name
-                            }
-                        ]
-                    }
-                ],
+                "containers": [container_spec],
                 "volumes": [
                     {
                         "name": "%s-volume" % name,
@@ -775,7 +799,8 @@ class KubernetesService(service.Service):
                                                     mount_path,
                                                     volume_path, volume_type,
                                                     namespace, sleep_time,
-                                                    retries_total):
+                                                    retries_total,
+                                                    command=None):
         """Create pod with secret volume, wait for running status.
 
         :param name: pod's name
@@ -786,6 +811,7 @@ class KubernetesService(service.Service):
         :param namespace: pod's namespace
         :param sleep_time: sleep time between each two retries
         :param retries_total: total number of retries
+        :param command: array of strings representing container command
         :return: True if wait for running status successful and False otherwise
         """
         self.create_hostpath_volume_pod(
@@ -794,7 +820,8 @@ class KubernetesService(service.Service):
             mount_path=mount_path,
             volume_type=volume_type,
             volume_path=volume_path,
-            namespace=namespace
+            namespace=namespace,
+            command=command
         )
 
         i = 0
