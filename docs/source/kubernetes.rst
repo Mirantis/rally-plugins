@@ -39,6 +39,9 @@ There are next contexts for kubernetes tests:
 |                                    |   count: 3                          | and non-default service accounts with  |
 |                                    |   with_serviceaccount: yes          | tokens if necessary.                   |
 +------------------------------------+-------------------------------------+----------------------------------------+
+| kubernetes.local_storageclass      | kubernetes.local_storageclass: {}   | Creates local storage class according  |
+|                                    |                                     | kubernetes documentation.              |
++------------------------------------+-------------------------------------+----------------------------------------+
 
 There are the following tasks:
 
@@ -79,6 +82,14 @@ There are the following tasks:
 | Kubernetes.create_check_and_delete_hostpath_volume | Create pod with hostPath volume, wait until   |
 |                                                    | it won't be running, exec pod with check_cmd  |
 |                                                    | and delete pod then.                          |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_local_pvc_volume      | Create pv, create pvc, create pod with pvc    |
+|                                                    | bound, wait until it won't be running and     |
+|                                                    | delete pod, pvc, pv then.                     |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_local_pvc_volume| Create pv, create pvc, create pod with pvc    |
+|                                                    | bound, wait until it won't be running, exec   |
+|                                                    | pod with check_cmd; delete pod, pvc, pv then. |
 +----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
@@ -387,3 +398,92 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-check-and-delete-hostpath-volume.yaml
+
+Kubernetes.create_and_delete_local_pvc_volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++-------------------------+--------+-------------------------------------+
+| Argument                | Type   | Description                         |
++=========================+========+=====================================+
+| persistent_volume       | map    | persistent volume valuable params   |
++-------------------------+--------+-------------------------------------+
+| -> size                 | string | PV size in kubernetes size format   |
++-------------------------+--------+-------------------------------------+
+| -> volume_mode          | string | Filesystem or Block                 |
++-------------------------+--------+-------------------------------------+
+| -> local_path           | string | PV local path to volume on host     |
++-------------------------+--------+-------------------------------------+
+| -> access_modes         | list   | PV access modes list of strings     |
++-------------------------+--------+-------------------------------------+
+| -> node_affinity        | map    | PV nodeAffinity rule                |
++-------------------------+--------+-------------------------------------+
+| persistent_volume_claim | map    | PVC valuable params                 |
++-------------------------+--------+-------------------------------------+
+| -> size                 | string | PVC size in kubernetes size format  |
++-------------------------+--------+-------------------------------------+
+| -> access_modes         | list   | PVC access modes list of strings    |
++-------------------------+--------+-------------------------------------+
+| image                   | string | image used in pod's manifest        |
++-------------------------+--------+-------------------------------------+
+| mount_path              | string | path to mount volume in pod         |
++-------------------------+--------+-------------------------------------+
+| sleep_time              | number | sleep time between each two retries |
++-------------------------+--------+-------------------------------------+
+| retries_total           | number | total number of retries             |
++-------------------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-local-pvc-volume.yaml
+
+Kubernetes.create_check_and_delete_local_pvc_volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++-------------------------+--------+-------------------------------------+
+| Argument                | Type   | Description                         |
++=========================+========+=====================================+
+| persistent_volume       | map    | persistent volume valuable params   |
++-------------------------+--------+-------------------------------------+
+| -> size                 | string | PV size in kubernetes size format   |
++-------------------------+--------+-------------------------------------+
+| -> volume_mode          | string | Filesystem or Block                 |
++-------------------------+--------+-------------------------------------+
+| -> local_path           | string | PV local path to volume on host     |
++-------------------------+--------+-------------------------------------+
+| -> access_modes         | list   | PV access modes list of strings     |
++-------------------------+--------+-------------------------------------+
+| -> node_affinity        | map    | PV nodeAffinity rule                |
++-------------------------+--------+-------------------------------------+
+| persistent_volume_claim | map    | PVC valuable params                 |
++-------------------------+--------+-------------------------------------+
+| -> size                 | string | PVC size in kubernetes size format  |
++-------------------------+--------+-------------------------------------+
+| -> access_modes         | list   | PVC access modes list of strings    |
++-------------------------+--------+-------------------------------------+
+| check_cmd               | array  | array of strings, which represents  |
+|                         |        | check command to exec in pod        |
++-------------------------+--------+-------------------------------------+
+| image                   | string | image used in pod's manifest        |
++-------------------------+--------+-------------------------------------+
+| mount_path              | string | path to mount volume in pod         |
++-------------------------+--------+-------------------------------------+
+| sleep_time              | number | sleep time between each two retries |
++-------------------------+--------+-------------------------------------+
+| retries_total           | number | total number of retries             |
++-------------------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-local_pvc-volume.yaml

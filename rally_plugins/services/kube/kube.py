@@ -16,6 +16,7 @@ import time
 from kubernetes import config
 from kubernetes import client
 from kubernetes.client.apis import core_v1_api
+from kubernetes.client.apis import storage_v1_api
 from kubernetes.stream import stream
 from rally.common import logging
 from rally.common import utils as commonutils
@@ -35,6 +36,7 @@ class KubernetesService(service.Service):
         apiclient = config.new_client_from_config(spec.get("config_file"))
         apiclient.configuration.assert_hostname = False
         self.api = core_v1_api.CoreV1Api(api_client=apiclient)
+        self.storage_api = storage_v1_api.StorageV1Api(api_client=apiclient)
         self.events = []
 
     @atomic.action_timer("kube.create_namespace")
@@ -821,6 +823,258 @@ class KubernetesService(service.Service):
             volume_type=volume_type,
             volume_path=volume_path,
             namespace=namespace,
+            command=command
+        )
+
+        i = 0
+        flag = False
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            resp = self.api.read_namespaced_pod_status(name,
+                                                       namespace=namespace)
+
+            if resp.status.phase == "Running":
+                return True
+            elif not flag:
+                e_list = self.api.list_namespaced_event(namespace=namespace)
+                for item in e_list.items:
+                    if item.metadata.name.startswith(name):
+                        if item.reason == "CreateContainerError":
+                            LOG.error("Volume failed to mount to pod")
+                            return False
+                        elif (item.reason == "SuccessfulMountVolume" and
+                              ("%s-volume" % name) in item.message):
+                            LOG.info("Volume %s-volume successfully mount to "
+                                     "pod %s" % (name, name))
+                            flag = True
+            i += 1
+            commonutils.interruptable_sleep(sleep_time)
+        return False
+
+    @atomic.action_timer("kube.create_local_storageclass")
+    def create_local_storageclass(self, name):
+        manifest = {
+            "kind": "StorageClass",
+            "apiVersion": "storage.k8s.io/v1",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "provisioner": "kubernetes.io/no-provisioner",
+            "volumeBindingMode": "WaitForFirstConsumer"
+        }
+
+        self.storage_api.create_storage_class(body=manifest)
+
+        LOG.info("Local storage class %s created." % name)
+
+    @atomic.action_timer("kube.delete_local_storageclass")
+    def delete_local_storageclass(self, name):
+        resp = self.storage_api.delete_storage_class(
+            name=name,
+            body=client.V1DeleteOptions()
+        )
+        LOG.info("Local storage class %s delete started. "
+                 "Status: %s" % (name, resp.status))
+
+    @atomic.action_timer("kube.create_local_persistent_volume")
+    def create_local_pv(self, name, storage_class, size, volume_mode,
+                        local_path, access_modes, node_affinity, sleep_time,
+                        retries_total):
+        manifest = {
+            "kind": "PersistentVolume",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "spec": {
+                "capacity": {
+                    "storage": size
+                },
+                "volumeMode": volume_mode,
+                "accessModes": access_modes,
+                "persistentVolumeReclaimPolicy": "Retain",
+                "storageClassName": storage_class,
+                "local": {
+                    "path": local_path
+                },
+                "nodeAffinity": node_affinity
+            }
+        }
+
+        resp = self.api.create_persistent_volume(body=manifest)
+
+        LOG.info("Local persistent volume %s create started. "
+                 "Status: %s" % (name, resp.status))
+
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            resp = self.api.read_persistent_volume(name)
+            if resp.status.phase not in ("Available", "Released"):
+                i += 1
+                commonutils.interruptable_sleep(sleep_time)
+            else:
+                return True
+        return False
+
+    @atomic.action_timer("kube.get_local_persistent_volume")
+    def get_local_pv(self, name):
+        return self.api.read_persistent_volume(name)
+
+    @atomic.action_timer("kube.delete_local_persistent_volume")
+    def delete_local_pv(self, name, sleep_time, retries_total):
+        resp = self.api.delete_persistent_volume(name=name,
+                                                 body=client.V1DeleteOptions())
+
+        LOG.info("Local persistent volume %s delete started. "
+                 "Status: %s" % (name, resp.status))
+
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                self.api.read_persistent_volume(name)
+            except Exception:
+                return True
+            else:
+                commonutils.interruptable_sleep(sleep_time)
+                i += 1
+        return False
+
+    @atomic.action_timer("kube.create_local_persistent_volume_claim")
+    def create_local_pvc(self, name, storage_class, access_modes, size,
+                         namespace):
+        manifest = {
+            "kind": "PersistentVolumeClaim",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "spec": {
+                "resources": {
+                    "requests": {
+                      "storage": size
+                    }
+                },
+                "accessModes": access_modes,
+                "storageClassName": storage_class
+            }
+        }
+
+        resp = self.api.create_namespaced_persistent_volume_claim(
+            namespace=namespace,
+            body=manifest
+        )
+
+        LOG.info("Local persistent volume claim %s create started. "
+                 "Status: %s" % (name, resp.status))
+
+    @atomic.action_timer("kube.get_local_pvc")
+    def get_local_pvc(self, name, namespace):
+        return self.api.read_namespaced_persistent_volume_claim(
+            name, namespace=namespace)
+
+    @atomic.action_timer("kube.delete_local_pvc")
+    def delete_local_pvc(self, name, namespace, sleep_time, retries_total):
+        resp = self.api.delete_namespaced_persistent_volume_claim(
+            name=name,
+            namespace=namespace,
+            body=client.V1DeleteOptions()
+        )
+
+        LOG.info("Local persistent volume claim %s delete started. "
+                 "Status: %s" % (name, resp.status))
+
+        i = 0
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            try:
+                self.api.read_namespaced_persistent_volume_claim(
+                    name,
+                    namespace=namespace
+                )
+            except Exception:
+                return True
+            else:
+                commonutils.interruptable_sleep(sleep_time)
+                i += 1
+        return False
+
+    @atomic.action_timer("kube.create_local_pvc_pod")
+    def create_local_pvc_pod(self, name, image, mount_path, namespace,
+                             command=None):
+        """Create pod with emptyDir volume.
+
+        :param name: pod's name
+        :param image: pod's image
+        :param mount_path: pod's mount path of volume
+        :param namespace: pod's namespace
+        :param command: array of strings representing container command
+        """
+        container_spec = {
+            "name": name,
+            "image": image,
+            "volumeMounts": [
+                {
+                    "mountPath": mount_path,
+                    "name": "%s-volume" % name
+                }
+            ]
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "spec": {
+                "serviceAccountName": namespace,
+                "containers": [container_spec],
+                "volumes": [
+                    {
+                        "name": "%s-volume" % name,
+                        "persistentVolumeClaim": {
+                            "claimName": name
+                        }
+                    }
+                ]
+            }
+        }
+
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["serviceAccountName"]
+
+        resp = self.api.create_namespaced_pod(body=manifest,
+                                              namespace=namespace)
+        LOG.info("Pod %(name)s created. Status: %(status)s" % {
+            "name": name,
+            "status": resp.status.phase
+        })
+
+    @atomic.action_timer("kube.create_local_pvc_pod_and_wait_running")
+    def create_local_pvc_pod_and_wait_running(self, name, namespace, image,
+                                              mount_path, sleep_time,
+                                              retries_total, command=None):
+        self.create_local_pvc_pod(
+            name,
+            image=image,
+            namespace=namespace,
+            mount_path=mount_path,
             command=command
         )
 

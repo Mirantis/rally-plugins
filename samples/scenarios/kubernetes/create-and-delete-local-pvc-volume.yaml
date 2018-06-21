@@ -1,0 +1,74 @@
+---
+  Kubernetes.create_and_delete_local_persistent_volume:
+  -
+    args:
+      persistent_volume:
+        size: 1Gi
+        volume_mode: Block
+        local_path: /var/tmp
+        access_modes:
+        - ReadWriteOnce
+        node_affinity:
+          required:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - minikube
+      persistent_volume_claim:
+        size: 250Mi
+        access_modes:
+        - ReadWriteOnce
+      image: nginx
+      mount_path: /opt/check
+      sleep_time: 1
+      retries_total: 50
+    runner:
+      type: constant
+      times: 10
+      concurrency: 2
+    context:
+      kubernetes.local_storageclass: {}
+      kubernetes.namespaces:
+        count: 3
+        with_serviceaccount: yes
+    sla:
+      failure_rate:
+        max: 0
+  -
+    args:
+      persistent_volume:
+        size: 1Gi
+        volume_mode: Block
+        local_path: /var/tmp
+        access_modes:
+        - ReadWriteOnce
+        node_affinity:
+          required:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - minikube
+      persistent_volume_claim:
+        size: 250Mi
+        access_modes:
+        - ReadWriteOnce
+      image: nginx
+      mount_path: /opt/check
+      sleep_time: 1
+      retries_total: 50
+    runner:
+      type: rps
+      times: 10
+      rps: 2
+    context:
+      kubernetes.local_storageclass: {}
+      kubernetes.namespaces:
+        count: 3
+        with_serviceaccount: yes
+    sla:
+      failure_rate:
+        max: 0

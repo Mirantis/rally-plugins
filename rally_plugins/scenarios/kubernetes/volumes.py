@@ -271,3 +271,165 @@ class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
             sleep_time=sleep_time,
             retries_total=retries_total
         ))
+
+
+@scenario.configure(
+    name="Kubernetes.create_and_delete_local_persistent_volume",
+    platform="kubernetes"
+)
+class CreateAndDeleteLocalPV(common.KubernetesScenario):
+
+    def run(self, persistent_volume, persistent_volume_claim, mount_path,
+            image, sleep_time, retries_total, command=None):
+        name = self.generate_name()
+        namespace = self._choose_namespace()
+        storage_class = self.context["storageclass"]
+
+        self.assertTrue(self.client.create_local_pv(
+            name,
+            storage_class=storage_class,
+            size=persistent_volume["size"],
+            volume_mode=persistent_volume["volume_mode"],
+            local_path=persistent_volume["local_path"],
+            access_modes=persistent_volume["access_modes"],
+            node_affinity=persistent_volume["node_affinity"],
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        self.client.create_local_pvc(
+            name,
+            namespace=namespace,
+            storage_class=storage_class,
+            access_modes=persistent_volume_claim["access_modes"],
+            size=persistent_volume_claim["size"]
+        )
+
+        self.assertTrue(self.client.create_local_pvc_pod_and_wait_running(
+            name,
+            namespace=namespace,
+            image=image,
+            mount_path=mount_path,
+            command=command,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        resp = self.client.get_local_pvc(name, namespace=namespace)
+        self.assertNotEqual("Failed", resp.status.phase)
+        if resp.status.phase != "Failed":
+            LOG.info("Local PVC %s bound to pod" % name)
+
+        self.assertTrue(self.client.delete_pod(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        resp = self.client.get_local_pvc(name, namespace=namespace)
+        self.assertNotEqual("Failed", resp.status.phase)
+        if resp.status.phase != "Failed":
+            LOG.info("Local PVC %s still in place" % name)
+
+        resp = self.client.get_local_pv(name)
+        self.assertNotEqual("Failed", resp.status.phase)
+        if resp.status.phase != "Failed":
+            LOG.info("Local PV %s still in place" % name)
+
+        self.assertTrue(self.client.delete_local_pvc(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        self.assertTrue(self.client.delete_local_pv(
+            name,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+
+@scenario.configure(
+    name="Kubernetes.create_check_and_delete_local_persistent_volume",
+    platform="kubernetes"
+)
+class CreateCheckAndDeleteLocalPV(common.KubernetesScenario):
+
+    def run(self, persistent_volume, persistent_volume_claim, check_cmd,
+            mount_path, image, sleep_time, retries_total, command=None):
+        name = self.generate_name()
+        namespace = self._choose_namespace()
+        storage_class = self.context["storageclass"]
+
+        self.assertTrue(self.client.create_local_pv(
+            name,
+            storage_class=storage_class,
+            size=persistent_volume["size"],
+            volume_mode=persistent_volume["volume_mode"],
+            local_path=persistent_volume["local_path"],
+            access_modes=persistent_volume["access_modes"],
+            node_affinity=persistent_volume["node_affinity"],
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        self.client.create_local_pvc(
+            name,
+            namespace=namespace,
+            storage_class=storage_class,
+            access_modes=persistent_volume_claim["access_modes"],
+            size=persistent_volume_claim["size"]
+        )
+
+        self.assertTrue(self.client.create_local_pvc_pod_and_wait_running(
+            name,
+            namespace=namespace,
+            image=image,
+            mount_path=mount_path,
+            command=command,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        resp = self.client.get_local_pvc(name, namespace=namespace)
+        self.assertNotEqual("Failed", resp.status.phase)
+        if resp.status.phase != "Failed":
+            LOG.info("Local PVC %s bound to pod" % name)
+
+        self.assertTrue(self.client.check_volume_pod_existence(
+            name,
+            namespace=namespace,
+            check_cmd=check_cmd
+        ))
+
+        self.assertTrue(self.client.delete_pod(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        resp = self.client.get_local_pvc(name, namespace=namespace)
+        self.assertNotEqual("Failed", resp.status.phase)
+        if resp.status.phase != "Failed":
+            LOG.info("Local PVC %s still in place" % name)
+
+        resp = self.client.get_local_pv(name)
+        self.assertNotEqual("Failed", resp.status.phase)
+        if resp.status.phase != "Failed":
+            LOG.info("Local PV %s still in place" % name)
+
+        self.assertTrue(self.client.delete_local_pvc(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        self.assertTrue(self.client.delete_local_pv(
+            name,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
