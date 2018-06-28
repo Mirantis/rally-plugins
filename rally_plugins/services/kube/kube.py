@@ -1102,3 +1102,138 @@ class KubernetesService(service.Service):
             i += 1
             commonutils.interruptable_sleep(sleep_time)
         return False
+
+    @atomic.action_timer("kube.create_configmap")
+    def create_configmap(self, name, namespace, data):
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "data": data
+        }
+        self.api.create_namespaced_config_map(namespace=namespace,
+                                              body=manifest)
+
+    @atomic.action_timer("kube.create_configmap_volume_pod")
+    def create_configmap_volume_pod(self, name, image, mount_path, namespace,
+                                    command=None, subpath=None):
+        """Create pod with hostPath volume.
+
+        :param name: pod's name
+        :param image: pod's image
+        :param configmap: configMap name as a pod volume
+        :param subpath: subPath from configMap data to mount in pod
+        :param mount_path: pod's mount path of volume
+        :param namespace: pod's namespace
+        :param command: array of strings representing container command
+        """
+        container_spec = {
+            "name": name,
+            "image": image,
+            "volumeMounts": [
+                {
+                    "mountPath": mount_path,
+                    "name": "%s-volume" % name
+                }
+            ]
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+        if subpath:
+            container_spec["volumeMounts"][0]["subPath"] = subpath
+
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "role": "rally-test"
+                }
+            },
+            "spec": {
+                "serviceAccountName": namespace,
+                "containers": [container_spec],
+                "volumes": [
+                    {
+                        "name": "%s-volume" % name,
+                        "configMap": {
+                            "name": name
+                        }
+                    }
+                ]
+            }
+        }
+
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["serviceAccountName"]
+
+        resp = self.api.create_namespaced_pod(body=manifest,
+                                              namespace=namespace)
+        LOG.info("Pod %(name)s created. Status: %(status)s" % {
+            "name": name,
+            "status": resp.status.phase
+        })
+
+    @atomic.action_timer("kube.create_configmap_volume_pod_and_wait_running")
+    def create_configmap_volume_pod_and_wait_running(self, name, image,
+                                                     mount_path,
+                                                     namespace, sleep_time,
+                                                     retries_total,
+                                                     command=None,
+                                                     subpath=None):
+        """Create pod with secret volume, wait for running status.
+
+        :param name: pod's name
+        :param image: pod's image
+        :param mount_path: pod's mount path of volume
+        :param subpath: subPath from configMap data to mount in pod
+        :param namespace: pod's namespace
+        :param sleep_time: sleep time between each two retries
+        :param retries_total: total number of retries
+        :param command: array of strings representing container command
+        :return: True if wait for running status successful and False otherwise
+        """
+        self.create_configmap_volume_pod(
+            name,
+            image=image,
+            mount_path=mount_path,
+            subpath=subpath,
+            namespace=namespace,
+            command=command
+        )
+
+        i = 0
+        flag = False
+        while i < retries_total:
+            LOG.debug("Attempt number %s" % i)
+            resp = self.api.read_namespaced_pod_status(name,
+                                                       namespace=namespace)
+
+            if resp.status.phase == "Running":
+                return True
+            elif not flag:
+                e_list = self.api.list_namespaced_event(namespace=namespace)
+                for item in e_list.items:
+                    if item.metadata.name.startswith(name):
+                        if item.reason == "CreateContainerError":
+                            LOG.error("Volume failed to mount to pod")
+                            return False
+                        elif (item.reason == "SuccessfulMountVolume" and
+                              ("%s-volume" % name) in item.message):
+                            LOG.info("Volume %s-volume successfully mount to "
+                                     "pod %s" % (name, name))
+                            flag = True
+            i += 1
+            commonutils.interruptable_sleep(sleep_time)
+        return False
+
+    @atomic.action_timer("kube.delete_configmap")
+    def delete_configmap(self, name, namespace):
+        self.api.delete_namespaced_config_map(name, namespace=namespace,
+                                              body=client.V1DeleteOptions())
