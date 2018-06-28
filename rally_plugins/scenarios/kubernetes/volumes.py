@@ -433,3 +433,104 @@ class CreateCheckAndDeleteLocalPV(common.KubernetesScenario):
             sleep_time=sleep_time,
             retries_total=retries_total
         ))
+
+
+@scenario.configure(name="Kubernetes.create_and_delete_configmap_volume",
+                    platform="kubernetes")
+class CreateAndDeleteConfigMapVolume(common.KubernetesScenario):
+
+    def run(self, image, mount_path, configmap_data, sleep_time, retries_total,
+            command=None, subpath=None):
+        """Create pod with hostPath volume, wait for status and delete it then.
+
+        :param image: pod's image
+        :param mount_path: path to mount volume in pod
+        :param configmap_data: configMap resource data
+        :param subpath: subPath from configMap data to mount in pod
+        :param sleep_time: poll interval between each two retries
+        :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
+        """
+        name = self.generate_name()
+        namespace = self._choose_namespace()
+
+        self.client.create_configmap(
+            name,
+            namespace=namespace,
+            data=configmap_data
+        )
+
+        self.assertTrue(
+            self.client.create_configmap_volume_pod_and_wait_running(
+                name,
+                image=image,
+                mount_path=mount_path,
+                subpath=subpath,
+                namespace=namespace,
+                sleep_time=sleep_time,
+                retries_total=retries_total,
+                command=command
+            )
+        )
+
+        self.assertTrue(self.client.delete_pod(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+
+@scenario.configure(name="Kubernetes.create_check_and_delete_configmap_volume",
+                    platform="kubernetes")
+class CreateCheckAndDeleteConfigMapVolume(common.KubernetesScenario):
+
+    def run(self, image, mount_path, configmap_data, sleep_time, retries_total,
+            check_cmd, command=None, subpath=None):
+        """Create pod with hostPath volume, wait for status and delete it then.
+
+        :param image: pod's image
+        :param mount_path: path to mount volume in pod
+        :param configmap_data: configMap resource data
+        :param check_cmd: check command to exec in pod
+        :param subpath: subPath from configMap data to mount in pod
+        :param sleep_time: poll interval between each two retries
+        :param retries_total: number of total retries of reading status
+        :param command: array of strings representing container command
+        """
+        name = self.generate_name()
+        namespace = self._choose_namespace()
+
+        self.client.create_configmap(
+            name,
+            namespace=namespace,
+            data=configmap_data
+        )
+
+        self.assertTrue(
+            self.client.create_configmap_volume_pod_and_wait_running(
+                name,
+                image=image,
+                mount_path=mount_path,
+                subpath=subpath,
+                namespace=namespace,
+                sleep_time=sleep_time,
+                retries_total=retries_total,
+                command=command
+            )
+        )
+
+        self.assertTrue(self.client.check_volume_pod_existence(
+            name,
+            namespace=namespace,
+            check_cmd=check_cmd
+        ))
+
+        self.assertTrue(self.client.delete_pod(
+            name,
+            namespace=namespace,
+            sleep_time=sleep_time,
+            retries_total=retries_total
+        ))
+
+        self.client.delete_configmap(name, namespace=namespace)

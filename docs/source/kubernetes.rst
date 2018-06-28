@@ -91,6 +91,14 @@ There are the following tasks:
 |                                                    | bound, wait until it won't be running, exec   |
 |                                                    | pod with check_cmd; delete pod, pvc, pv then. |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_configmap_volume      | Create configMap, create pod with configMap   |
+|                                                    | volume, wait until it won't be running and    |
+|                                                    | and delete pod then.                          |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_configmap_volume| Create configMap, create pod with configMap   |
+|                                                    | volume, wait until it won't be running, exec  |
+|                                                    | pod with check_cmd and delete pod then.       |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -487,3 +495,70 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-check-and-delete-local_pvc-volume.yaml
+
+Kubernetes.create_and_delete_configmap_volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++----------------+--------+----------------------------------------+
+| Argument       | Type   | Description                            |
++================+========+========================================+
+| image          | string | image used in pod's manifest           |
++----------------+--------+----------------------------------------+
+| mount_path     | string | path to mount volume in pod            |
++----------------+--------+----------------------------------------+
+| configmap_data | map    | configMap resource data                |
++----------------+--------+----------------------------------------+
+| subpath        | string | subPath cm data to mount in pod        |
++----------------+--------+----------------------------------------+
+| sleep_time     | number | sleep time between each two retries    |
++----------------+--------+----------------------------------------+
+| retries_total  | number | total number of retries                |
++----------------+--------+----------------------------------------+
+| command        | array  | array of strings representing          |
+|                |        | container command, default is None     |
++----------------+--------+----------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-configmap-volume.yaml
+
+Kubernetes.create_check_and_delete_configmap_volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++----------------+--------+----------------------------------------+
+| Argument       | Type   | Description                            |
++================+========+========================================+
+| image          | string | image used in pod's manifest           |
++----------------+--------+----------------------------------------+
+| mount_path     | string | path to mount volume in pod            |
++----------------+--------+----------------------------------------+
+| configmap_data | map    | configMap resource data                |
++----------------+--------+----------------------------------------+
+| subpath        | string | subPath cm data to mount in pod        |
++----------------+--------+----------------------------------------+
+| sleep_time     | number | sleep time between each two retries    |
++----------------+--------+----------------------------------------+
+| retries_total  | number | total number of retries                |
++----------------+--------+----------------------------------------+
+| check_cmd      | array  | array of strings, which represents     |
+|                |        | check command to exec in pod           |
++----------------+--------+----------------------------------------+
+| command        | array  | array of strings representing          |
+|                |        | container command, default is None     |
++----------------+--------+----------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-configmap-volume.yaml

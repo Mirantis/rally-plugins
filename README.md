@@ -60,6 +60,9 @@ Next scenarios are implemented in *rally-plugins*:
   PVC and delete it then
 - kubernetes: create namespace, create PV and PVC, create namespaced pod with
   PVC, check it with check command and delete it then
-  
->>>>>>> Add local PVC testing
+- kubernetes: create namespace, create configMap and namespaced pod with
+  configMap volume and delete it then
+- kubernetes: create namespace, create configMap and namespaced pod with
+  configMap volume, check it with check command and delete it then
+
 For more details how to run and analyze tests, see `docs\source` directory. 

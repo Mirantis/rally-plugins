@@ -1,0 +1,44 @@
+---
+  Kubernetes.create_and_delete_configmap_volume:
+  -
+    args:
+      image: nginx
+      mount_path: /var/log/check.txt
+      subpath: check.txt
+      sleep_time: 1
+      retries_total: 40
+      configmap_data:
+        check.txt: |
+          test
+    runner:
+      type: constant
+      concurrency: 2
+      times: 10
+    context:
+      kubernetes.namespaces:
+        count: 3
+        with_serviceaccount: yes
+    sla:
+      failure_rate:
+        max: 0
+  -
+    args:
+      image: nginx
+      mount_path: /var/log/check.txt
+      subpath: check.txt
+      sleep_time: 1
+      retries_total: 40
+      configmap_data:
+        check.txt: |
+          test
+    runner:
+      type: rps
+      rps: 2
+      times: 10
+    context:
+      kubernetes.namespaces:
+        count: 3
+        with_serviceaccount: yes
+    sla:
+      failure_rate:
+        max: 0
