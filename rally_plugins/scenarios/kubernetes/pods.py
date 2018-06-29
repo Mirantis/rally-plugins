@@ -12,65 +12,108 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from rally.common import logging
+import collections
+import time
+
 from rally.task import scenario
 
-from rally_plugins.scenarios.kubernetes import common
-
-LOG = logging.getLogger(__name__)
+from rally_plugins.scenarios.kubernetes import common as common_scenario
 
 
-@scenario.configure(name="Kubernetes.run_namespaced_pod",
+@scenario.configure(name="Kubernetes.create_and_delete_pod",
                     platform="kubernetes")
-class NamespacedPodPlugin(common.KubernetesScenario, scenario.Scenario):
-    """Kubernetes pod create and delete test.
+class CreateAndDeletePod(common_scenario.BaseKubernetesScenario):
 
-    Choose created namespace, create pod with defined image, wait until it
-    not be running and delete it after.
-    """
+    def _parse_pod_status_conditions(self, conditions):
+        """Method for collecting pods statuses: inited, scheduled, ready."""
 
-    def _make_event_data(self):
+        def to_time(dt):
+            return time.mktime(dt)
+
+        if not conditions:
+            return []
+
+        start, finish = None, None
+        stat_dict = collections.OrderedDict()
+        stat_dict.update({
+            "kubernetes.initialized_pod": {},
+            "kubernetes.scheduled_pod": {},
+            "kubernetes.created_pod": {}
+        })
+        for d in conditions:
+            if d.type == "Initialized":
+                start = init_time = to_time(d.last_transition_time.timetuple())
+                stat_dict["kubernetes.initialized_pod"].update({
+                    "started_at": init_time
+                })
+            elif d.type == "PodScheduled":
+                scheduled = to_time(d.last_transition_time.timetuple())
+                stat_dict["kubernetes.scheduled_pod"].update({
+                    "started_at": scheduled
+                })
+                stat_dict["kubernetes.initialized_pod"].update({
+                    "finished_at": scheduled
+                })
+            elif d.type == "Ready":
+                finish = to_time(d.last_transition_time.timetuple())
+                stat_dict["kubernetes.created_pod"].update({
+                    "started_at": start,
+                    "finished_at": finish
+                })
+                stat_dict["kubernetes.scheduled_pod"].update({
+                    "finished_at": finish
+                })
+        return [{"name": k,
+                 "started_at": v["started_at"],
+                 "finished_at": v["finished_at"]}
+                for k, v in stat_dict.items()]
+
+    def _make_data_from_conditions(self, conditions):
+        """Make plot data from conditions made by parse method."""
         data = [[] for _ in range(3)]
         state_map = {
-            "kube.initialized_pod": 0,
-            "kube.scheduled_pod": 1,
-            "kube.created_pod": 2
+            "kubernetes.initialized_pod": 0,
+            "kubernetes.scheduled_pod": 1,
+            "kubernetes.created_pod": 2
         }
 
-        for e in self.client.events:
+        for e in conditions:
             duration = e["finished_at"] - e["started_at"]
             data[state_map[e["name"]]] = [e["name"], duration]
         return data
 
-    def run(self, image, sleep_time=5, retries_total=30, command=None):
-        """Create pod and then delete it.
+    def run(self, image, name=None, command=None, status_wait=True):
+        """Create pod, wait until it won't be running and then delete it.
 
-        :param image: image used in pods manifests
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :param command: array of strings representing container command
+        :param image: pod's image
+        :param name: pod's custom name
+        :param command: array of strings, pod's command. Could be None if
+               image have entrypoint
+        :param status_wait: wait pod status after creation
         """
-        namespace = self._choose_namespace()
-        pod = self.generate_name()
+        namespace = self.choose_namespace()
 
-        # create
-        self.assertTrue(self.client.create_pod(pod, image=image,
-                                               namespace=namespace,
-                                               sleep_time=sleep_time,
-                                               retries_total=retries_total,
-                                               command=command))
+        name = self.client.create_pod(
+            name,
+            namespace=namespace,
+            image=image,
+            command=command,
+            status_wait=status_wait
+        )
 
-        # cleanup
-        self.assertTrue(self.client.delete_pod(pod, namespace=namespace,
-                                               sleep_time=sleep_time,
-                                               retries_total=retries_total))
-
-        data = self._make_event_data()
+        pod = self.client.get_pod(name, namespace=namespace)
+        conditions = self._parse_pod_status_conditions(pod.status.conditions)
         self.add_output(
             additive={"title": "Pod's conditions total duration",
                       "description": "Total durations for pod in each "
                                      "iteration",
                       "chart_plugin": "StackedArea",
-                      "data": data,
+                      "data": self._make_data_from_conditions(conditions),
                       "label": "Total seconds",
                       "axis_label": "Iteration"})
+
+        self.client.delete_pod(
+            name,
+            namespace=namespace,
+            status_wait=status_wait
+        )

@@ -8,18 +8,58 @@ Rally plugin for testing kubernetes.
 Getting started
 ---------------
 
-First of all, you need to create rally env for kubernetes. Use spec from
-``samples/platforms/kubespec.yaml`` to create env:
+First of all, you need to create rally env for Kubernetes. There are two main
+ways to communicate to Kubernetes cluster - specifying auth-token or
+certifications. Choose what is suitable for your case and use one of the
+following samples.
 
-..
+To create env using certifications, use spec `samples/platforms/kubernetes/cert-spec.yaml`:
 
-  rally env create --name kubernetes --spec samples/platforms/kubespec.yaml
+```console
+rally env create --name kubernetes --spec samples/platforms/kubernetes/cert-spec.yaml
+```
 
-and check it after that:
+For using Kubernetes token authentication, you need to get API key and use
+`samples/platforms/kubernetes/apikey-spec.yaml` spec to create env:
 
-..
+```console
+rally env create --name kubernetes --spec samples/platforms/kubernetes/apikey-spec.yaml
+```
 
-  rally env check
+For initialization `Rally environment` to communicate to existing Kubernetes
+cluster you can also use system environment variables instead of making
+specification json/yaml file. See the list of available options:
+
+* As like regular kubernetes client (kubectl) Rally can read kubeconfig file.
+  Call `rally env create --name kubernetes-created --from-sys-env` and Rally
+  with check `$HOME/.kube/config` file to the available configuration. Also,
+  you can specify `KUBECONFIG` variable with a path different to the default
+  `$HOME/.kube/config`.
+
+* Despite the fact that `kubectl` doesn't support specifying Kubernetes
+  credentials via separated system environment variables per separate option
+  (auth_url, api_key, etc) like other platforms support (OpenStack, Docker,
+  etc), Rally team provides this way. Check existing@kubernetes plugin for the
+  list of all available variables. Here is a simple example of this feature:
+
+  ```console
+  # the URL to the Kubernetes host.
+  export KUBERNETES_HOST="https://example.com:3030"
+  #  a path to a file containing TLS certificate to use when connecting to the Kubernetes host.
+  export KUBERNETES_CERT_AUTH="~/.kube/cert_auth_file"
+  # client API key to use as token when connecting to the Kubernetes host.
+  export KUBERNETES_API_KEY="foo"
+  # client API key prefix to use in token when connecting to the Kubernetes host.
+  export KUBERNETES_API_KEY_PREFIX="bar"
+
+  # finally create a Rally environment
+  rally env create --name my-kubernetes --from-sysenv
+  ```
+Check env availbility by the following command:
+
+```console
+rally env check
+```
 
 Now, if env is OK, create task config (or use it from
 ``samples/scenarios/kubernetes/``) and start it:
@@ -35,9 +75,13 @@ There are next contexts for kubernetes tests:
 +------------------------------------+-------------------------------------+----------------------------------------+
 | Context                            | Sample                              | Description                            |
 +====================================+=====================================+========================================+
-| kubernetes.namespaces              | kubernetes.namespaces:              | Creates `count` number of namespaces   |
+| namespaces                         | kubernetes.namespaces:              | Creates `count` number of namespaces   |
 |                                    |   count: 3                          | and non-default service accounts with  |
 |                                    |   with_serviceaccount: yes          | tokens if necessary.                   |
++------------------------------------+-------------------------------------+----------------------------------------+
+| kubernetes.namespaces              | kubernetes.namespaces:              | [DEPRECATED!] Creates `count` number   |
+|                                    |   count: 3                          | of namespaces and non-default service  |
+|                                    |   with_serviceaccount: yes          | accounts with tokens if necessary.     |
 +------------------------------------+-------------------------------------+----------------------------------------+
 | kubernetes.local_storageclass      | kubernetes.local_storageclass: {}   | Creates local storage class according  |
 |                                    |                                     | kubernetes documentation.              |
@@ -48,7 +92,7 @@ There are the following tasks:
 +----------------------------------------------------+-----------------------------------------------+
 | Task                                               | Description                                   |
 +====================================================+===============================================+
-| Kubernetes.run_namespaced_pod                      | Creates pod, wait until it won't be running,  |
+| Kubernetes.create_and_delete_pod                   | Creates pod, wait until it won't be running,  |
 |                                                    | collect pod's phases info and delete the pod. |
 +----------------------------------------------------+-----------------------------------------------+
 | Kubernetes.create_delete_replication_controller    | Creates rc with number of replicas, wait      |
@@ -103,8 +147,8 @@ There are the following tasks:
 Consider each task separately.
 
 
-Kubernetes.run_namespaced_pod
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Kubernetes.create_and_delete_pod
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The task contains next args:
 
@@ -112,10 +156,6 @@ The task contains next args:
 | Argument      | Type   | Description                         |
 +===============+========+=====================================+
 | image         | string | image used in pod's manifest        |
-+---------------+--------+-------------------------------------+
-| sleep_time    | number | sleep time between each two retries |
-+---------------+--------+-------------------------------------+
-| retries_total | number | total number of retries             |
 +---------------+--------+-------------------------------------+
 | command       | array  | array of strings representing       |
 |               |        | container command, default is None  |
@@ -127,7 +167,7 @@ To run the test, run next command:
 
 ..
 
-  rally task start samples/scenarios/kubernetes/run-namespaced-pods.yaml
+  rally task start samples/scenarios/kubernetes/create-and-delete-pod.yaml
 
 
 Kubernetes.create_delete_replication_controller
@@ -188,18 +228,8 @@ To run the test, run next command:
 
   rally task start samples/scenarios/kubernetes/scale-replication-controller.yaml
 
-Kubernetes.create_delete_namespace
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The task contains next args:
-
-+---------------+--------+-------------------------------------+
-| Argument      | Type   | Description                         |
-+===============+========+=====================================+
-| sleep_time    | number | sleep time between each two retries |
-+---------------+--------+-------------------------------------+
-| retries_total | number | total number of retries             |
-+---------------+--------+-------------------------------------+
+Kubernetes.create_and_delete_namespace
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The task supports *rps* and *constant* types of scenario runner.
 
@@ -207,7 +237,7 @@ To run the test, run next command:
 
 ..
 
-  rally task start samples/scenarios/kubernetes/create-delete-namespace.yaml
+  rally task start samples/scenarios/kubernetes/create-and-delete-namespace.yaml
 
 Kubernetes.list_namespaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
