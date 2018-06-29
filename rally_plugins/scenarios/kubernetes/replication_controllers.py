@@ -39,8 +39,8 @@ class RCCreateAndDelete(common.KubernetesScenario, scenario.Scenario):
         :param retries_total: total number of retries
         :param command: array of strings representing container command
         """
-        namespace = self._choose_namespace()
-        rc = self.generate_name()
+        namespace = self.choose_namespace()
+        rc = self.generate_random_name()
 
         # create
         self.assertTrue(self.client.create_rc(rc, replicas=replicas,
@@ -75,8 +75,8 @@ class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
         :param retries_total: total number of retries
         :param command: array of strings representing container command
         """
-        rc = self.generate_name()
-        namespace = self._choose_namespace()
+        rc = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         # create
         self.assertTrue(self.client.create_rc(

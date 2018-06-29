@@ -33,8 +33,8 @@ class CreateAndDeleteEmptyDirVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.assertTrue(
             self.client.create_emptydir_volume_pod_and_wait_running(
@@ -48,12 +48,7 @@ class CreateAndDeleteEmptyDirVolume(common.KubernetesScenario):
             )
         )
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(name="Kubernetes.create_check_and_delete_emptydir_volume",
@@ -71,8 +66,8 @@ class CreateCheckDeleteEmptyDirVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.assertTrue(
             self.client.create_emptydir_volume_pod_and_wait_running(
@@ -92,12 +87,7 @@ class CreateCheckDeleteEmptyDirVolume(common.KubernetesScenario):
             check_cmd=check_cmd
         ))
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(name="Kubernetes.create_and_delete_secret_volume",
@@ -113,8 +103,8 @@ class CreateAndDeleteSecretVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.client.create_secret(name, namespace=namespace)
 
@@ -130,12 +120,7 @@ class CreateAndDeleteSecretVolume(common.KubernetesScenario):
             )
         )
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(name="Kubernetes.create_check_and_delete_secret_volume",
@@ -153,8 +138,8 @@ class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.client.create_secret(name, namespace=namespace)
 
@@ -176,12 +161,7 @@ class CreateCheckDeleteSecretVolume(common.KubernetesScenario):
             check_cmd=check_cmd
         ))
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(name="Kubernetes.create_and_delete_hostpath_volume",
@@ -200,8 +180,8 @@ class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.assertTrue(
             self.client.create_hostpath_volume_pod_and_wait_running(
@@ -217,12 +197,7 @@ class CreateAndDeleteHostPathVolume(common.KubernetesScenario):
             )
         )
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(name="Kubernetes.create_check_and_delete_hostpath_volume",
@@ -242,8 +217,8 @@ class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.assertTrue(
             self.client.create_hostpath_volume_pod_and_wait_running(
@@ -265,12 +240,7 @@ class CreateCheckAndDeleteHostPathVolume(common.KubernetesScenario):
             check_cmd=check_cmd
         ))
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(
@@ -281,8 +251,8 @@ class CreateAndDeleteLocalPV(common.KubernetesScenario):
 
     def run(self, persistent_volume, persistent_volume_claim, mount_path,
             image, sleep_time, retries_total, command=None):
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
         storage_class = self.context["storageclass"]
 
         self.assertTrue(self.client.create_local_pv(
@@ -320,12 +290,7 @@ class CreateAndDeleteLocalPV(common.KubernetesScenario):
         if resp.status.phase != "Failed":
             LOG.info("Local PVC %s bound to pod" % name)
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
         resp = self.client.get_local_pvc(name, namespace=namespace)
         self.assertNotEqual("Failed", resp.status.phase)
@@ -359,8 +324,8 @@ class CreateCheckAndDeleteLocalPV(common.KubernetesScenario):
 
     def run(self, persistent_volume, persistent_volume_claim, check_cmd,
             mount_path, image, sleep_time, retries_total, command=None):
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
         storage_class = self.context["storageclass"]
 
         self.assertTrue(self.client.create_local_pv(
@@ -404,12 +369,7 @@ class CreateCheckAndDeleteLocalPV(common.KubernetesScenario):
             check_cmd=check_cmd
         ))
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
         resp = self.client.get_local_pvc(name, namespace=namespace)
         self.assertNotEqual("Failed", resp.status.phase)
@@ -441,7 +401,7 @@ class CreateAndDeleteConfigMapVolume(common.KubernetesScenario):
 
     def run(self, image, mount_path, configmap_data, sleep_time, retries_total,
             command=None, subpath=None):
-        """Create pod with hostPath volume, wait for status and delete it then.
+        """Create pod with configMap volume, wait for status, delete it then.
 
         :param image: pod's image
         :param mount_path: path to mount volume in pod
@@ -451,8 +411,8 @@ class CreateAndDeleteConfigMapVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.client.create_configmap(
             name,
@@ -473,12 +433,7 @@ class CreateAndDeleteConfigMapVolume(common.KubernetesScenario):
             )
         )
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+        self.client.delete_pod(name, namespace=namespace)
 
 
 @scenario.configure(name="Kubernetes.create_check_and_delete_configmap_volume",
@@ -487,7 +442,7 @@ class CreateCheckAndDeleteConfigMapVolume(common.KubernetesScenario):
 
     def run(self, image, mount_path, configmap_data, sleep_time, retries_total,
             check_cmd, command=None, subpath=None):
-        """Create pod with hostPath volume, wait for status and delete it then.
+        """Create pod with configMap volume, check it and delete then.
 
         :param image: pod's image
         :param mount_path: path to mount volume in pod
@@ -498,8 +453,8 @@ class CreateCheckAndDeleteConfigMapVolume(common.KubernetesScenario):
         :param retries_total: number of total retries of reading status
         :param command: array of strings representing container command
         """
-        name = self.generate_name()
-        namespace = self._choose_namespace()
+        name = self.generate_random_name()
+        namespace = self.choose_namespace()
 
         self.client.create_configmap(
             name,
@@ -526,11 +481,5 @@ class CreateCheckAndDeleteConfigMapVolume(common.KubernetesScenario):
             check_cmd=check_cmd
         ))
 
-        self.assertTrue(self.client.delete_pod(
-            name,
-            namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
-
+        self.client.delete_pod(name, namespace=namespace)
         self.client.delete_configmap(name, namespace=namespace)

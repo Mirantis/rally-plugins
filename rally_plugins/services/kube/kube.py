@@ -11,191 +11,294 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+
+import os
 import time
 
-from kubernetes import config
-from kubernetes import client
+from kubernetes import client as k8s_config
+from kubernetes.client import api_client
 from kubernetes.client.apis import core_v1_api
+from kubernetes.client.apis import version_api
+from kubernetes.client import rest
 from kubernetes.client.apis import storage_v1_api
 from kubernetes.stream import stream
+from rally.common import cfg
 from rally.common import logging
 from rally.common import utils as commonutils
+from rally import exceptions
 from rally.task import atomic
 from rally.task import service
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
-class KubernetesService(service.Service):
+def wait_for_status(name, status, read_method, resource_type=None,
+                    **kwargs):
+    """Util method for polling status until it won't be equals to `status`.
+
+    :param name: resource name
+    :param status: status waiting for
+    :param read_method: method to poll
+    :param resource_type: resource type for extended exceptions
+    :param kwargs: additional kwargs for read_method
+    """
+    sleep_time = CONF.kubernetes.status_poll_interval
+    retries_total = CONF.kubernetes.status_total_retries
+
+    commonutils.interruptable_sleep(CONF.kubernetes.start_prepoll_delay)
+
+    i = 0
+    while i < retries_total:
+        resp = read_method(name=name, **kwargs)
+        resp_id = resp.metadata.uid
+        current_status = resp.status.phase
+        if resp.status.phase != status:
+            i += 1
+            commonutils.interruptable_sleep(sleep_time)
+        else:
+            return
+        if i == retries_total:
+            raise exceptions.TimeoutException(
+                desired_status=status,
+                resource_name=name,
+                resource_type=resource_type,
+                resource_id=resp_id or "<no id>",
+                resource_status=current_status,
+                timeout=(retries_total * sleep_time))
+
+
+def wait_for_not_found(name, read_method, resource_type=None, **kwargs):
+    """Util method for polling status while resource exists.
+
+    :param name: resource name
+    :param read_method: method to poll
+    :param resource_type: resource type for extended exceptions
+    :param kwargs: additional kwargs for read_method
+    """
+    sleep_time = CONF.kubernetes.status_poll_interval
+    retries_total = CONF.kubernetes.status_total_retries
+
+    commonutils.interruptable_sleep(CONF.kubernetes.start_prepoll_delay)
+
+    i = 0
+    while i < retries_total:
+        try:
+            resp = read_method(name=name, **kwargs)
+            resp_id = resp.metadata.uid
+            current_status = resp.status.phase
+        except rest.ApiException as ex:
+            if ex.status == 404:
+                return
+            else:
+                raise
+        else:
+            commonutils.interruptable_sleep(sleep_time)
+            i += 1
+        if i == retries_total:
+            raise exceptions.TimeoutException(
+                desired_status="Terminated",
+                resource_name=name,
+                resource_type=resource_type,
+                resource_id=resp_id or "<no id>",
+                resource_status=current_status,
+                timeout=(retries_total * sleep_time))
+
+
+class Kubernetes(service.Service):
+    """A wrapper for python kubernetes client.
+
+    This class handles different ways for initialization of kubernetesclient.
+    """
 
     def __init__(self, spec, name_generator=None, atomic_inst=None):
-        super(KubernetesService, self).__init__(None,
-                                                name_generator=name_generator,
-                                                atomic_inst=atomic_inst)
+        super(Kubernetes, self).__init__(None,
+                                         name_generator=name_generator,
+                                         atomic_inst=atomic_inst)
         self._spec = spec
-        apiclient = config.new_client_from_config(spec.get("config_file"))
-        apiclient.configuration.assert_hostname = False
-        self.api = core_v1_api.CoreV1Api(api_client=apiclient)
-        self.storage_api = storage_v1_api.StorageV1Api(api_client=apiclient)
-        self.events = []
 
-    @atomic.action_timer("kube.create_namespace")
-    def create_namespace(self, name):
-        """Create namespace.
+        # NOTE(andreykurilin): KubernetesClient doesn't provide any __version__
+        #   property to identify the client version (you are welcome to fix
+        #   this code if I'm wrong). Let's check for some backward incompatible
+        #   changes to identify the way to communicate with it.
+        if hasattr(k8s_config, "ConfigurationObject"):
+            # Actually, it is `k8sclient < 4.0.0`, so it can be
+            #   kubernetesclient 2.0 or even less, but it doesn't make any
+            #   difference for us
+            self._k8s_client_version = 3
+        else:
+            self._k8s_client_version = 4
+
+        if self._k8s_client_version == 3:
+            config = k8s_config.ConfigurationObject()
+        else:
+            config = k8s_config.Configuration()
+
+        config.host = self._spec["server"]
+        config.ssl_ca_cert = self._spec["certificate-authority"]
+        if self._spec.get("api_key"):
+            config.api_key = {"authorization": self._spec["api_key"]}
+            if self._spec.get("api_key_prefix"):
+                config.api_key_prefix = {
+                    "authorization": self._spec["api_key_prefix"]}
+        else:
+            config.cert_file = self._spec["client-certificate"]
+            config.key_file = self._spec["client-key"]
+            if self._spec.get("tls_insecure", False):
+                config.verify_ssl = False
+
+        if self._k8s_client_version == 3:
+            api = api_client.ApiClient(config=config)
+        else:
+            api = api_client.ApiClient(configuration=config)
+
+        self.api = api
+        self.v1_client = core_v1_api.CoreV1Api(api)
+        self.v1_storage = storage_v1_api.StorageV1Api(api)
+
+    def get_version(self):
+        return version_api.VersionApi(self.api).get_code().to_dict()
+
+    @classmethod
+    def create_spec_from_file(cls):
+        from kubernetes.config import kube_config
+
+        cfg_file = kube_config.KUBE_CONFIG_DEFAULT_LOCATION
+        if not os.path.exists(os.path.expanduser(cfg_file)):
+            return {}
+
+        kube_config.load_kube_config()
+        k8s_cfg = k8s_config.Configuration()
+        return {
+            "host": k8s_cfg.host,
+            "certificate-authority": k8s_cfg.ssl_ca_cert,
+            "api_key": k8s_cfg.api_key,
+            "api_key_prefix": k8s_cfg.api_key_prefix,
+            "client-certificate": k8s_cfg.cert_file,
+            "client-key": k8s_cfg.key_file,
+            "tls_insecure": k8s_cfg.verify_ssl
+        }
+
+    @atomic.action_timer("kubernetes.list_namespaces")
+    def list_namespaces(self):
+        """List namespaces."""
+        return [{"name": r.metadata.name,
+                 "uid": r.metadata.uid,
+                 "labels": r.metadata.labels}
+                for r in self.v1_client.list_namespace().items]
+
+    @atomic.action_timer("kubernetes.get_namespace")
+    def get_namespace(self, name):
+        """Get namespace status.
 
         :param name: namespace name
         """
+        return self.v1_client.read_namespace(name)
+
+    @atomic.action_timer("kubernetes.create_namespace")
+    def create_namespace(self, name, status_wait=True):
+        """Create namespace and wait until status phase won't be Active.
+
+        :param name: namespace name
+        :param status_wait: wait namespace for Active status
+        """
+        name = name or self.generate_random_name()
+
         manifest = {
             "apiVersion": "v1",
             "kind": "Namespace",
             "metadata": {
                 "name": name,
                 "labels": {
-                    "role": "rally-test"
+                    "role": name
                 }
             }
         }
-        self.api.create_namespace(body=manifest)
-        LOG.info("Namespace %s created" % name)
+        self.v1_client.create_namespace(body=manifest)
 
-    @atomic.action_timer("create_namespace_and_wait_active_status")
-    def create_namespace_and_wait_active(self, name, sleep_time=5,
-                                         retries_total=30):
-        """Create namespace and wait until status phase won't be Active.
+        if status_wait:
+            with atomic.ActionTimer(self,
+                                    "kubernetes.wait_for_nc_become_active"):
+                wait_for_status(name,
+                                status="Active",
+                                read_method=self.get_namespace)
+        return name
+
+    @atomic.action_timer("kubernetes.delete_namespace")
+    def delete_namespace(self, name, status_wait=True):
+        """Delete namespace and wait it's full termination.
 
         :param name: namespace name
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :return: True if create successful and False otherwise
+        :param status_wait: wait namespace for termination
         """
-        self.create_namespace(name)
+        self.v1_client.delete_namespace(name=name,
+                                        body=k8s_config.V1DeleteOptions())
 
-        i = 0
-        LOG.debug("Wait until namespace status won't be active")
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                resp = self.api.read_namespace(name=name)
-            except Exception as ex:
-                LOG.warning("Unable to read namespace status: %s" % ex.message)
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                if resp.status.phase != "Active":
-                    i += 1
-                    commonutils.interruptable_sleep(sleep_time)
-                else:
-                    return True
-        return False
+        if status_wait:
+            with atomic.ActionTimer(self,
+                                    "kubernetes.wait_namespace_termination"):
+                wait_for_not_found(name,
+                                   read_method=self.get_namespace)
 
-    @atomic.action_timer("kube.create_serviceaccount")
+    @atomic.action_timer("kubernetes.create_serviceaccount")
     def create_serviceaccount(self, name, namespace):
-        """ Create serviceaccount and token for namespace.
+        """Create serviceAccount for namespace.
 
-        :param name: serviceaccount name
-        :param namespace: namespace where sa should be created.
+        :param name: serviceAccount name
+        :param namespace: namespace where sa should be created
         """
         sa_manifest = {
             "apiVersion": "v1",
             "kind": "ServiceAccount",
             "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
+                "name": name
             }
         }
-        self.api.create_namespaced_service_account(namespace=namespace,
-                                                   body=sa_manifest)
-        LOG.info("ServiceAccount %s created." % name)
+        self.v1_client.create_namespaced_service_account(namespace=namespace,
+                                                         body=sa_manifest)
+
+    @atomic.action_timer("kubernetes.create_secret")
+    def create_secret(self, name, namespace):
+        """Create secret with token for namespace.
+
+        :param name: secret name
+        :param namespace: namespace where secret should be created
+        """
         secret_manifest = {
             "apiVersion": "v1",
             "kind": "Secret",
             "metadata": {
                 "name": name,
-                "labels": {
-                    "role": "rally-test"
-                },
                 "annotations": {
                     "kubernetes.io/service-account.name": name
                 }
             }
         }
-        self.api.create_namespaced_secret(namespace=namespace,
-                                          body=secret_manifest)
-        LOG.info("Secret %s for service account created." % name)
+        self.v1_client.create_namespaced_secret(namespace=namespace,
+                                                body=secret_manifest)
 
-    @atomic.action_timer("kube.create_secret")
-    def create_secret(self, name, namespace):
-        secret_manifest = {
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            }
-        }
-        self.api.create_namespaced_secret(namespace=namespace,
-                                          body=secret_manifest)
-        LOG.info("Secret %s created." % name)
-
-    def _update_pod_stats(self, name, conditions):
-        """Method for collecting pods statuses: inited, scheduled, ready."""
-
-        def to_time(dt):
-            return time.mktime(dt)
-
-        start, finish = None, None
-        stat_dict = {
-            "kube.initialized_pod": {},
-            "kube.scheduled_pod": {},
-            "kube.created_pod": {}
-        }
-        for d in conditions:
-            if d.type == "Initialized":
-                start = init_time = to_time(d.last_transition_time.timetuple())
-                stat_dict["kube.initialized_pod"].update({
-                    "started_at": init_time
-                })
-            elif d.type == "PodScheduled":
-                scheduled = to_time(d.last_transition_time.timetuple())
-                stat_dict["kube.scheduled_pod"].update({
-                    "started_at": scheduled
-                })
-                stat_dict["kube.initialized_pod"].update({
-                    "finished_at": scheduled
-                })
-            elif d.type == "Ready":
-                finish = to_time(d.last_transition_time.timetuple())
-                stat_dict["kube.created_pod"].update({
-                    "started_at": start,
-                    "finished_at": finish
-                })
-                stat_dict["kube.scheduled_pod"].update({
-                    "finished_at": finish
-                })
-        self.events.extend([{
-            "name": k,
-            "started_at": v["started_at"],
-            "finished_at": v["finished_at"]}
-            for k, v in stat_dict.items()
-        ])
-
-    @atomic.action_timer("kube.create_pod")
-    def create_pod(self, name, image, namespace, sleep_time=5,
-                   retries_total=30, command=None):
-        """Create pod in defined namespace.
+    @atomic.action_timer("kubernetes.get_pod")
+    def get_pod(self, name, namespace):
+        """Get pod status.
 
         :param name: pod's name
-        :param image: pod's image
-        :param namespace: defined namespace to create pod in
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :param command: array of strings representing container command
-        :return: True if create started and False otherwise
+        :param namespace: pod's namespace
         """
+        return self.v1_client.read_namespaced_pod(name, namespace=namespace)
+
+    @atomic.action_timer("kubernetes.create_pod")
+    def create_pod(self, name, image, namespace, command=None,
+                   status_wait=True):
+        """Create pod and wait until status phase won't be Running.
+
+        :param name: pod's custom name
+        :param image: pod's image
+        :param namespace: chosen namespace to create pod into
+        :param command: array of strings which represents container command
+        :param status_wait: wait pod for Running status
+        """
+        name = name or self.generate_random_name()
+
         container_spec = {
             "name": name,
             "image": image
@@ -209,7 +312,7 @@ class KubernetesService(service.Service):
             "metadata": {
                 "name": name,
                 "labels": {
-                    "role": "rally-test"
+                    "role": self._spec.get("env_id") or name
                 }
             },
             "spec": {
@@ -221,47 +324,38 @@ class KubernetesService(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
 
-        i = 0
-        create_started = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                resp = self.api.create_namespaced_pod(body=manifest,
-                                                      namespace=namespace)
-                LOG.info("Pod %(name)s created. Status: %(status)s" % {
-                    "name": name,
-                    "status": resp.status.phase
-                })
-            except Exception as ex:
-                LOG.error("Pod create failed: %s" % ex.message)
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                create_started = True
-                break
+        self.v1_client.create_namespaced_pod(body=manifest,
+                                             namespace=namespace)
 
-        if not create_started:
-            return False
+        if status_wait:
+            with atomic.ActionTimer(self,
+                                    "kubernetes.wait_for_pod_become_running"):
+                wait_for_status(name,
+                                status="Running",
+                                read_method=self.get_pod,
+                                namespace=namespace)
+        return name
 
-        i = 0
-        LOG.debug("Wait until pod status not running")
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                resp = self.api.read_namespaced_pod(name=name,
-                                                    namespace=namespace)
-            except Exception as ex:
-                LOG.warning("Unable to read pod status: %s" % ex.message)
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                if resp.status.phase != "Running":
-                    i += 1
-                    commonutils.interruptable_sleep(sleep_time)
-                else:
-                    self._update_pod_stats(name, resp.status.conditions)
-                    return True
-        return False
+    @atomic.action_timer("kubernetes.delete_pod")
+    def delete_pod(self, name, namespace, status_wait=True):
+        """Delete pod and wait it's full termination.
+
+        :param name: pod's name
+        :param namespace: pod's namespace
+        :param status_wait: wait pod for termination
+        """
+        self.v1_client.delete_namespaced_pod(
+            name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
+
+        if status_wait:
+            with atomic.ActionTimer(self,
+                                    "kubernetes.wait_pod_termination"):
+                wait_for_not_found(name,
+                                   read_method=self.get_pod,
+                                   namespace=namespace)
 
     @atomic.action_timer("kube.create_replication_controller")
     def create_rc(self, name, replicas, image, namespace, sleep_time=5,
@@ -278,7 +372,7 @@ class KubernetesService(service.Service):
         :return: True if create finished successfully and False otherwise
         """
 
-        app = self.generate_random_name().replace("_", "-").lower()
+        app = self.generate_random_name()
 
         container_spec = {
             "name": name,
@@ -321,7 +415,7 @@ class KubernetesService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
             try:
-                self.api.create_namespaced_replication_controller(
+                self.v1_client.create_namespaced_replication_controller(
                     body=manifest, namespace=namespace)
                 LOG.info("RC %s created" % name)
             except Exception as ex:
@@ -340,7 +434,7 @@ class KubernetesService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
             try:
-                resp = self.api.read_namespaced_replication_controller(
+                resp = self.v1_client.read_namespaced_replication_controller(
                     name=name, namespace=namespace)
             except Exception as ex:
                 LOG.warning("Unable to read RC status: %s" % ex.message)
@@ -356,7 +450,7 @@ class KubernetesService(service.Service):
 
     def get_rc_replicas(self, name, namespace):
         """Util method for get RC's current number of replicas."""
-        resp = self.api.read_namespaced_replication_controller(
+        resp = self.v1_client.read_namespaced_replication_controller(
             name=name, namespace=namespace)
         return resp.spec.replicas
 
@@ -372,7 +466,7 @@ class KubernetesService(service.Service):
         :param retries_total: total number of retries
         :returns True if scale successful and False otherwise
         """
-        self.api.patch_namespaced_replication_controller(
+        self.v1_client.patch_namespaced_replication_controller(
             name=name,
             namespace=namespace,
             body={"spec": {"replicas": replicas}}
@@ -382,7 +476,7 @@ class KubernetesService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
             try:
-                resp = self.api.read_namespaced_replication_controller(
+                resp = self.v1_client.read_namespaced_replication_controller(
                     name=name, namespace=namespace)
             except Exception as ex:
                 LOG.warning("Unable to read RC status: %s" % ex.message)
@@ -396,15 +490,6 @@ class KubernetesService(service.Service):
                     return True
         return False
 
-    @atomic.action_timer("kube.list_namespaces")
-    def list_namespaces(self):
-        """List namespaces."""
-        try:
-            self.api.list_namespace()
-        except Exception:
-            return False
-        return True
-
     @atomic.action_timer("kube.delete_replication_controller")
     def delete_rc(self, name, namespace, sleep_time=5, retries_total=30):
         """Delete RC from namespace and wait until it won't be terminated.
@@ -415,8 +500,8 @@ class KubernetesService(service.Service):
         :param retries_total: total number of retries
         :returns True if delete successful and False otherwise
         """
-        resp = self.api.delete_namespaced_replication_controller(
-            name=name, namespace=namespace, body=client.V1DeleteOptions())
+        resp = self.v1_client.delete_namespaced_replication_controller(
+            name=name, namespace=namespace, body=k8s_config.V1DeleteOptions())
         LOG.info("RC %(name)s delete started. Status: %(status)s" % {
             "name": name,
             "status": resp.status
@@ -426,75 +511,8 @@ class KubernetesService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
             try:
-                self.api.read_namespaced_replication_controller_status(
+                self.v1_client.read_namespaced_replication_controller_status(
                     name=name, namespace=namespace)
-            except Exception:
-                return True
-            else:
-                commonutils.interruptable_sleep(sleep_time)
-                i += 1
-        return False
-
-    @atomic.action_timer("kube.delete_pod")
-    def delete_pod(self, name, namespace, sleep_time=5, retries_total=30):
-        """Delete pod from namespace.
-
-        :param name: pod's name
-        :param namespace: pod's namespace
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :returns True if delete successful and False otherwise
-        """
-        resp = self.api.delete_namespaced_pod(name=name, namespace=namespace,
-                                              body=client.V1DeleteOptions())
-        LOG.info("Pod %(name)s delete started. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status
-        })
-
-        i = 0
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                self.api.read_namespaced_pod_status(name=name,
-                                                    namespace=namespace)
-            except Exception:
-                return True
-            else:
-                commonutils.interruptable_sleep(sleep_time)
-                i += 1
-        return False
-
-    @atomic.action_timer("kube.delete_namespace")
-    def delete_namespace(self, name):
-        """Delete namespace.
-
-        :param name: namespace name
-        """
-        resp = self.api.delete_namespace(name=name,
-                                         body=client.V1DeleteOptions())
-
-        LOG.info("Namespace %(name)s deleted. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status
-        })
-
-    @atomic.action_timer("kube.delete_namespace_and_wait_termination")
-    def delete_namespace_and_wait_termination(self, name, sleep_time=5,
-                                              retries_total=30):
-        """Delete namespace and wait it's full termination.
-
-        :param name: namespace name
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :return: True if termination successful and False otherwise
-        """
-        self.delete_namespace(name)
-        i = 0
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                self.api.read_namespace(name)
             except Exception:
                 return True
             else:
@@ -550,8 +568,8 @@ class KubernetesService(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
 
-        resp = self.api.create_namespaced_pod(body=manifest,
-                                              namespace=namespace)
+        resp = self.v1_client.create_namespaced_pod(body=manifest,
+                                                    namespace=namespace)
         LOG.info("Pod %(name)s created. Status: %(status)s" % {
             "name": name,
             "status": resp.status.phase
@@ -586,13 +604,16 @@ class KubernetesService(service.Service):
         flag = False
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
-            resp = self.api.read_namespaced_pod_status(name,
-                                                       namespace=namespace)
+            resp = self.v1_client.read_namespaced_pod_status(
+                name,
+                namespace=namespace
+            )
 
             if resp.status.phase == "Running":
                 return True
             elif not flag:
-                e_list = self.api.list_namespaced_event(namespace=namespace)
+                e_list = self.v1_client.list_namespaced_event(
+                    namespace=namespace)
                 for item in e_list.items:
                     if item.metadata.name.startswith(name):
                         if item.reason == "CreateContainerError":
@@ -616,7 +637,7 @@ class KubernetesService(service.Service):
         :param check_cmd: check_cmd as array of strings
         """
         resp = stream(
-            self.api.connect_get_namespaced_pod_exec,
+            self.v1_client.connect_get_namespaced_pod_exec,
             name,
             namespace=namespace,
             command=check_cmd,
@@ -679,8 +700,8 @@ class KubernetesService(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
 
-        resp = self.api.create_namespaced_pod(body=manifest,
-                                              namespace=namespace)
+        resp = self.v1_client.create_namespaced_pod(body=manifest,
+                                                    namespace=namespace)
         LOG.info("Pod %(name)s created. Status: %(status)s" % {
             "name": name,
             "status": resp.status.phase
@@ -715,13 +736,17 @@ class KubernetesService(service.Service):
         flag = False
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
-            resp = self.api.read_namespaced_pod_status(name,
-                                                       namespace=namespace)
+            resp = self.v1_client.read_namespaced_pod_status(
+                name,
+                namespace=namespace
+            )
 
             if resp.status.phase == "Running":
                 return True
             elif not flag:
-                e_list = self.api.list_namespaced_event(namespace=namespace)
+                e_list = self.v1_client.list_namespaced_event(
+                    namespace=namespace
+                )
                 for item in e_list.items:
                     if item.metadata.name.startswith(name):
                         if item.reason == "CreateContainerError":
@@ -789,8 +814,8 @@ class KubernetesService(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
 
-        resp = self.api.create_namespaced_pod(body=manifest,
-                                              namespace=namespace)
+        resp = self.v1_client.create_namespaced_pod(body=manifest,
+                                                    namespace=namespace)
         LOG.info("Pod %(name)s created. Status: %(status)s" % {
             "name": name,
             "status": resp.status.phase
@@ -830,13 +855,17 @@ class KubernetesService(service.Service):
         flag = False
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
-            resp = self.api.read_namespaced_pod_status(name,
-                                                       namespace=namespace)
+            resp = self.v1_client.read_namespaced_pod_status(
+                name,
+                namespace=namespace
+            )
 
             if resp.status.phase == "Running":
                 return True
             elif not flag:
-                e_list = self.api.list_namespaced_event(namespace=namespace)
+                e_list = self.v1_client.list_namespaced_event(
+                    namespace=namespace
+                )
                 for item in e_list.items:
                     if item.metadata.name.startswith(name):
                         if item.reason == "CreateContainerError":
@@ -866,15 +895,15 @@ class KubernetesService(service.Service):
             "volumeBindingMode": "WaitForFirstConsumer"
         }
 
-        self.storage_api.create_storage_class(body=manifest)
+        self.v1_storage.create_storage_class(body=manifest)
 
         LOG.info("Local storage class %s created." % name)
 
     @atomic.action_timer("kube.delete_local_storageclass")
     def delete_local_storageclass(self, name):
-        resp = self.storage_api.delete_storage_class(
+        resp = self.v1_storage.delete_storage_class(
             name=name,
-            body=client.V1DeleteOptions()
+            body=k8s_config.V1DeleteOptions()
         )
         LOG.info("Local storage class %s delete started. "
                  "Status: %s" % (name, resp.status))
@@ -907,7 +936,7 @@ class KubernetesService(service.Service):
             }
         }
 
-        resp = self.api.create_persistent_volume(body=manifest)
+        resp = self.v1_client.create_persistent_volume(body=manifest)
 
         LOG.info("Local persistent volume %s create started. "
                  "Status: %s" % (name, resp.status))
@@ -915,7 +944,7 @@ class KubernetesService(service.Service):
         i = 0
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
-            resp = self.api.read_persistent_volume(name)
+            resp = self.v1_client.read_persistent_volume(name)
             if resp.status.phase not in ("Available", "Released"):
                 i += 1
                 commonutils.interruptable_sleep(sleep_time)
@@ -925,12 +954,14 @@ class KubernetesService(service.Service):
 
     @atomic.action_timer("kube.get_local_persistent_volume")
     def get_local_pv(self, name):
-        return self.api.read_persistent_volume(name)
+        return self.v1_client.read_persistent_volume(name)
 
     @atomic.action_timer("kube.delete_local_persistent_volume")
     def delete_local_pv(self, name, sleep_time, retries_total):
-        resp = self.api.delete_persistent_volume(name=name,
-                                                 body=client.V1DeleteOptions())
+        resp = self.v1_client.delete_persistent_volume(
+            name=name,
+            body=k8s_config.V1DeleteOptions()
+        )
 
         LOG.info("Local persistent volume %s delete started. "
                  "Status: %s" % (name, resp.status))
@@ -939,7 +970,7 @@ class KubernetesService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
             try:
-                self.api.read_persistent_volume(name)
+                self.v1_client.read_persistent_volume(name)
             except Exception:
                 return True
             else:
@@ -970,7 +1001,7 @@ class KubernetesService(service.Service):
             }
         }
 
-        resp = self.api.create_namespaced_persistent_volume_claim(
+        resp = self.v1_client.create_namespaced_persistent_volume_claim(
             namespace=namespace,
             body=manifest
         )
@@ -980,15 +1011,15 @@ class KubernetesService(service.Service):
 
     @atomic.action_timer("kube.get_local_pvc")
     def get_local_pvc(self, name, namespace):
-        return self.api.read_namespaced_persistent_volume_claim(
+        return self.v1_client.read_namespaced_persistent_volume_claim(
             name, namespace=namespace)
 
     @atomic.action_timer("kube.delete_local_pvc")
     def delete_local_pvc(self, name, namespace, sleep_time, retries_total):
-        resp = self.api.delete_namespaced_persistent_volume_claim(
+        resp = self.v1_client.delete_namespaced_persistent_volume_claim(
             name=name,
             namespace=namespace,
-            body=client.V1DeleteOptions()
+            body=k8s_config.V1DeleteOptions()
         )
 
         LOG.info("Local persistent volume claim %s delete started. "
@@ -998,7 +1029,7 @@ class KubernetesService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
             try:
-                self.api.read_namespaced_persistent_volume_claim(
+                self.v1_client.read_namespaced_persistent_volume_claim(
                     name,
                     namespace=namespace
                 )
@@ -1059,8 +1090,8 @@ class KubernetesService(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
 
-        resp = self.api.create_namespaced_pod(body=manifest,
-                                              namespace=namespace)
+        resp = self.v1_client.create_namespaced_pod(body=manifest,
+                                                    namespace=namespace)
         LOG.info("Pod %(name)s created. Status: %(status)s" % {
             "name": name,
             "status": resp.status.phase
@@ -1082,13 +1113,17 @@ class KubernetesService(service.Service):
         flag = False
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
-            resp = self.api.read_namespaced_pod_status(name,
-                                                       namespace=namespace)
+            resp = self.v1_client.read_namespaced_pod_status(
+                name,
+                namespace=namespace
+            )
 
             if resp.status.phase == "Running":
                 return True
             elif not flag:
-                e_list = self.api.list_namespaced_event(namespace=namespace)
+                e_list = self.v1_client.list_namespaced_event(
+                    namespace=namespace
+                )
                 for item in e_list.items:
                     if item.metadata.name.startswith(name):
                         if item.reason == "CreateContainerError":
@@ -1116,8 +1151,8 @@ class KubernetesService(service.Service):
             },
             "data": data
         }
-        self.api.create_namespaced_config_map(namespace=namespace,
-                                              body=manifest)
+        self.v1_client.create_namespaced_config_map(namespace=namespace,
+                                                    body=manifest)
 
     @atomic.action_timer("kube.create_configmap_volume_pod")
     def create_configmap_volume_pod(self, name, image, mount_path, namespace,
@@ -1173,8 +1208,8 @@ class KubernetesService(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
 
-        resp = self.api.create_namespaced_pod(body=manifest,
-                                              namespace=namespace)
+        resp = self.v1_client.create_namespaced_pod(body=manifest,
+                                                    namespace=namespace)
         LOG.info("Pod %(name)s created. Status: %(status)s" % {
             "name": name,
             "status": resp.status.phase
@@ -1212,13 +1247,17 @@ class KubernetesService(service.Service):
         flag = False
         while i < retries_total:
             LOG.debug("Attempt number %s" % i)
-            resp = self.api.read_namespaced_pod_status(name,
-                                                       namespace=namespace)
+            resp = self.v1_client.read_namespaced_pod_status(
+                name,
+                namespace=namespace
+            )
 
             if resp.status.phase == "Running":
                 return True
             elif not flag:
-                e_list = self.api.list_namespaced_event(namespace=namespace)
+                e_list = self.v1_client.list_namespaced_event(
+                    namespace=namespace
+                )
                 for item in e_list.items:
                     if item.metadata.name.startswith(name):
                         if item.reason == "CreateContainerError":
@@ -1235,5 +1274,7 @@ class KubernetesService(service.Service):
 
     @atomic.action_timer("kube.delete_configmap")
     def delete_configmap(self, name, namespace):
-        self.api.delete_namespaced_config_map(name, namespace=namespace,
-                                              body=client.V1DeleteOptions())
+        self.v1_client.delete_namespaced_config_map(
+            name, namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
