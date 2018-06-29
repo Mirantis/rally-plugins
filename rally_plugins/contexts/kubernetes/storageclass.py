@@ -16,6 +16,7 @@ from rally.task import context
 from rally.common import logging
 from rally import consts
 
+from rally_plugins.contexts.kubernetes import context as commoncontext
 from rally_plugins.services.kube import kube
 
 LOG = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ LOG = logging.getLogger(__name__)
 
 @context.configure("kubernetes.local_storageclass", order=1002,
                    platform="kubernetes")
-class KubernetesLocalStorageClassContext(context.Context):
+class KubernetesLocalStorageClassContext(commoncontext.BaseKubernetesContext):
     """Context for creating local storage classes."""
 
     CONFIG_SCHEMA = {
@@ -35,7 +36,7 @@ class KubernetesLocalStorageClassContext(context.Context):
 
     def __init__(self, ctx):
         super(KubernetesLocalStorageClassContext, self).__init__(ctx)
-        self.client = kube.KubernetesService(
+        self.client = kube.Kubernetes(
             self.env["platforms"]["kubernetes"],
             name_generator=self.generate_random_name,
             atomic_inst=self.atomic_actions()
@@ -44,7 +45,7 @@ class KubernetesLocalStorageClassContext(context.Context):
     def setup(self):
         self.context.setdefault("storageclass", None)
 
-        name = self.generate_random_name().replace('_', '-').lower()
+        name = self.generate_random_name()
 
         try:
             self.client.create_local_storageclass(name)
