@@ -143,6 +143,15 @@ There are the following tasks:
 |                                                    | volume, wait until it won't be running, exec  |
 |                                                    | pod with check_cmd and delete pod then.       |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_replicaset            | Create replicaset with number of replicas,    |
+|                                                    | wait for all replicas are ready and delete    |
+|                                                    | replicaset then.                              |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_scale_and_delete_replicaset      | Create replicaset with number of replicas,    |
+|                                                    | wait for all replicas are ready, scale with   |
+|                                                    | scale_replicas, scale revert and delete       |
+|                                                    | replicaset then.                              |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -527,7 +536,7 @@ To run the test, run next command:
   rally task start samples/scenarios/kubernetes/create-check-and-delete-local_pvc-volume.yaml
 
 Kubernetes.create_and_delete_configmap_volume
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The task contains next args:
 
@@ -559,7 +568,7 @@ To run the test, run next command:
   rally task start samples/scenarios/kubernetes/create-and-delete-configmap-volume.yaml
 
 Kubernetes.create_check_and_delete_configmap_volume
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The task contains next args:
 
@@ -592,3 +601,63 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-check-and-delete-configmap-volume.yaml
+
+Kubernetes.create_and_delete_replicaset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in replicaset    |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| name          | string | replicaset custom name, default is  |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for status if True             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-replicaset.yaml
+
+Kubernetes.create_scale_and_delete_replicaset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in replicaset    |
++---------------+--------+-------------------------------------+
+| scale_replicas| number | number of replicas to scale         |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| name          | string | replicaset custom name, default is  |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for status if True             |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-scale-and-delete-replicaset.yaml

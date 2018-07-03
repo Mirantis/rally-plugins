@@ -32,37 +32,45 @@ pip uninstall rally-plugins
 
 Currently there are next services:
 
-- service for Grafana, that push metric by pushgateway and check it in specified grafana datasource.
+- service for Grafana, that push metric by pushgateway and check it in
+  specified grafana datasource
+- service for Kubernetes rally plugins
 
 Next scenarios are implemented in *rally-plugins*:
 
-- grafana: check metric pushed from nova instance by pushgateway
-- grafana: check metric pushed locally by pushgateway
-- elasticsearch: check data about created nova instance stored
-- kubernetes: create namespace and namespaced pod and delete it then
-- kubernetes: create namespace and namespaced replication controller and
-  delete it then
-- kubernetes: list namespaces
-- kubernetes: create namespace and delete it then
-- kubernetes: create namespace and namespaced pod with emptyDir volume and
-  delete it then
-- kubernetes: create namespace and namespaced pod with emptyDir volume, check
-  it with check command and delete it then
-- kubernetes: create namespace, create secret and namespaced pod with secret
-  volume and delete it then
-- kubernetes: create namespace, create secret and namespaced pod with secret
-  volume, check it with check command and delete it then
-- kubernetes: create namespace and namespaced pod with hostPath volume and
-  delete it then
-- kubernetes: create namespace and namespaced pod with hostPath volume, check
-  it with check command and delete it then
-- kubernetes: create namespace, create PV and PVC, create namespaced pod with
-  PVC and delete it then
-- kubernetes: create namespace, create PV and PVC, create namespaced pod with
-  PVC, check it with check command and delete it then
-- kubernetes: create namespace, create configMap and namespaced pod with
-  configMap volume and delete it then
-- kubernetes: create namespace, create configMap and namespaced pod with
-  configMap volume, check it with check command and delete it then
+* Grafana:
+  - check metric pushed from nova instance by pushgateway
+  - check metric pushed locally by pushgateway
+* Elasticsearch:
+  - check data about created nova instance stored
+* Kubernetes:
+  - create namespace and namespaced pod and delete it then
+  - create namespace and namespaced replication controller and
+    delete it then
+  - list namespaces
+  - create namespace and delete it then
+  - create namespace and namespaced pod with emptyDir volume and
+    delete it then
+  - create namespace and namespaced pod with emptyDir volume, check
+    it with check command and delete it then
+  - create namespace, create secret and namespaced pod with secret
+    volume and delete it then
+  - create namespace, create secret and namespaced pod with secret
+    volume, check it with check command and delete it then
+  - create namespace and namespaced pod with hostPath volume and
+    delete it then
+  - create namespace and namespaced pod with hostPath volume, check
+    it with check command and delete it then
+  - create namespace, create PV and PVC, create namespaced pod with
+    PVC and delete it then
+  - create namespace, create PV and PVC, create namespaced pod with
+    PVC, check it with check command and delete it then
+  - create namespace, create configMap and namespaced pod with
+    configMap volume and delete it then
+  - create namespace, create configMap and namespaced pod with
+    configMap volume, check it with check command and delete it then
+  - create namespace and namespaced replicaset and delete it then
+  - create namespace and namespaced replicaset, scale it with number
+    of replicas, scale revert and delete replicaset then
 
 For more details how to run and analyze tests, see `docs\source` directory. 

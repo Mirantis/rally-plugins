@@ -13,11 +13,11 @@
 # under the License.
 
 import os
-import time
 
 from kubernetes import client as k8s_config
 from kubernetes.client import api_client
 from kubernetes.client.apis import core_v1_api
+from kubernetes.client.apis import extensions_v1beta1_api
 from kubernetes.client.apis import version_api
 from kubernetes.client import rest
 from kubernetes.client.apis import storage_v1_api
@@ -34,13 +34,56 @@ LOG = logging.getLogger(__name__)
 
 
 def wait_for_status(name, status, read_method, resource_type=None,
-                    **kwargs):
+                    status_method=None, **kwargs):
     """Util method for polling status until it won't be equals to `status`.
 
     :param name: resource name
     :param status: status waiting for
+    :param status_method: custom status method check
     :param read_method: method to poll
     :param resource_type: resource type for extended exceptions
+    :param kwargs: additional kwargs for read_method
+    """
+    def compare_status(resp, **kwargs):
+        return resp.status.phase == kwargs.get("expected_status")
+
+    if status_method is None:
+        status_method = compare_status
+        kwargs["expected_status"] = status
+
+    sleep_time = CONF.kubernetes.status_poll_interval
+    retries_total = CONF.kubernetes.status_total_retries
+
+    commonutils.interruptable_sleep(CONF.kubernetes.start_prepoll_delay)
+
+    i = 0
+    while i < retries_total:
+        resp = read_method(name=name, **kwargs)
+        resp_id = resp.metadata.uid
+        current_status = resp.status.phase
+        if not status_method(resp, **kwargs):
+            i += 1
+            commonutils.interruptable_sleep(sleep_time)
+        else:
+            return
+        if i == retries_total:
+            raise exceptions.TimeoutException(
+                desired_status=status,
+                resource_name=name,
+                resource_type=resource_type,
+                resource_id=resp_id or "<no id>",
+                resource_status=current_status,
+                timeout=(retries_total * sleep_time))
+
+
+def wait_for_ready_replicas(name, read_method, resource_type=None,
+                            replicas=None, **kwargs):
+    """Util method for polling status until it won't be equals to `status`.
+
+    :param name: resource name
+    :param read_method: method to poll
+    :param resource_type: resource type for extended exceptions
+    :param replicas: replicaset expected replicas for extended exceptions
     :param kwargs: additional kwargs for read_method
     """
     sleep_time = CONF.kubernetes.status_poll_interval
@@ -52,15 +95,15 @@ def wait_for_status(name, status, read_method, resource_type=None,
     while i < retries_total:
         resp = read_method(name=name, **kwargs)
         resp_id = resp.metadata.uid
-        current_status = resp.status.phase
-        if resp.status.phase != status:
+        current_status = resp.status.replicas
+        if resp.status.ready_replicas != resp.status.replicas:
             i += 1
             commonutils.interruptable_sleep(sleep_time)
         else:
             return
         if i == retries_total:
             raise exceptions.TimeoutException(
-                desired_status=status,
+                desired_status=replicas,
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
@@ -86,7 +129,10 @@ def wait_for_not_found(name, read_method, resource_type=None, **kwargs):
         try:
             resp = read_method(name=name, **kwargs)
             resp_id = resp.metadata.uid
-            current_status = resp.status.phase
+            if kwargs.get("replicas"):
+                current_status = "%s replicas" % resp.status.replicas
+            else:
+                current_status = resp.status.phase
         except rest.ApiException as ex:
             if ex.status == 404:
                 return
@@ -155,6 +201,7 @@ class Kubernetes(service.Service):
         self.api = api
         self.v1_client = core_v1_api.CoreV1Api(api)
         self.v1_storage = storage_v1_api.StorageV1Api(api)
+        self.v1beta1_ext = extensions_v1beta1_api.ExtensionsV1beta1Api(api)
 
     def get_version(self):
         return version_api.VersionApi(self.api).get_code().to_dict()
@@ -1278,3 +1325,120 @@ class Kubernetes(service.Service):
             name, namespace=namespace,
             body=k8s_config.V1DeleteOptions()
         )
+
+    @atomic.action_timer("kubernetes.get_replicaset")
+    def get_replicaset(self, name, namespace, **kwargs):
+        return self.v1beta1_ext.read_namespaced_replica_set(
+            name=name,
+            namespace=namespace
+        )
+
+    @atomic.action_timer("kubernetes.create_replicaset")
+    def create_replicaset(self, name, namespace, replicas, image,
+                          command=None, status_wait=True):
+        """Create replicaset and wait until it won't be ready.
+
+        :param name: replicaset name
+        :param namespace: replicaset namespace
+        :param replicas: number of replicaset replicas
+        :param image: container's template image
+        :param command: container's template array of strings command
+        :param status_wait: wait for readiness if True
+        """
+        app = self.generate_random_name()
+        name = name or self.generate_random_name()
+
+        container_spec = {
+            "name": name,
+            "image": image
+        }
+        if command is not None and isinstance(command, (list, tuple)):
+            container_spec["command"] = list(command)
+
+        manifest = {
+            "apiVersion": "extensions/v1beta1",
+            "kind": "ReplicaSet",
+            "metadata": {
+                "name": name,
+                "labels": {
+                    "app": app
+                }
+            },
+            "spec": {
+                "replicas": replicas,
+                "selector": {
+                    "matchLabels": {
+                        "app": app
+                    }
+                },
+                "template": {
+                    "metadata": {
+                        "name": name,
+                        "labels": {
+                            "app": app
+                        }
+                    },
+                    "spec": {
+                        "serviceAccountName": namespace,
+                        "containers": [container_spec]
+                    }
+                }
+            }
+        }
+
+        if not self._spec.get("serviceaccounts"):
+            del manifest["spec"]["template"]["spec"]["serviceAccountName"]
+
+        self.v1beta1_ext.create_namespaced_replica_set(
+            namespace=namespace,
+            body=manifest
+        )
+
+        if status_wait:
+            with atomic.ActionTimer(
+                    self,
+                    "kubernetes.wait_for_replicaset_become_ready"):
+                wait_for_ready_replicas(
+                    name,
+                    read_method=self.get_replicaset,
+                    replicas=replicas,
+                    namespace=namespace)
+        return name
+
+    @atomic.action_timer("kubernetes.scale_replicaset")
+    def scale_replicaset(self, name, namespace, replicas, status_wait=True):
+        self.v1beta1_ext.patch_namespaced_replica_set(
+            name=name,
+            namespace=namespace,
+            body={"spec": {"replicas": replicas}}
+        )
+        if status_wait:
+            with atomic.ActionTimer(
+                    self,
+                    "kubernetes.wait_for_replicaset_scale"):
+                wait_for_ready_replicas(
+                    name,
+                    read_method=self.get_replicaset,
+                    replicas=replicas,
+                    namespace=namespace)
+
+    @atomic.action_timer("kubernetes.delete_replicaset")
+    def delete_replicaset(self, name, namespace, status_wait=True):
+        """Delete replicaset and optionally wait for termination
+
+        :param name: replicaset name
+        :param namespace: replicaset namespace
+        :param status_wait: wait for termination if True
+        """
+        self.v1beta1_ext.delete_namespaced_replica_set(
+            name=name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
+        if status_wait:
+            with atomic.ActionTimer(self,
+                                    "kubernetes.wait_replicaset_termination"):
+                wait_for_not_found(name,
+                                   read_method=self.get_replicaset,
+                                   namespace=namespace,
+                                   replicas=True)
