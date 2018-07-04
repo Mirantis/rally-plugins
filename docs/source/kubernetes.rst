@@ -86,6 +86,11 @@ There are next contexts for kubernetes tests:
 | kubernetes.local_storageclass      | kubernetes.local_storageclass: {}   | Creates local storage class according  |
 |                                    |                                     | kubernetes documentation.              |
 +------------------------------------+-------------------------------------+----------------------------------------+
+| kubernetes.cfg                     | kubernetes.cfg:                     | rally-plugins utility method for       |
+|                                    |   sleep_time: 0.5                   | overriding rally kubernetes config     |
+|                                    |   retries_total: 100500             | opts.                                  |
+|                                    |   prepoll_delay: 1                  |                                        |
++------------------------------------+-------------------------------------+----------------------------------------+
 
 There are the following tasks:
 

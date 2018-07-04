@@ -33,26 +33,19 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
-def wait_for_status(name, status, read_method, resource_type=None,
-                    status_method=None, **kwargs):
+def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
     """Util method for polling status until it won't be equals to `status`.
 
     :param name: resource name
     :param status: status waiting for
-    :param status_method: custom status method check
     :param read_method: method to poll
     :param resource_type: resource type for extended exceptions
     :param kwargs: additional kwargs for read_method
     """
-    def compare_status(resp, **kwargs):
-        return resp.status.phase == kwargs.get("expected_status")
-
-    if status_method is None:
-        status_method = compare_status
-        kwargs["expected_status"] = status
-
     sleep_time = CONF.kubernetes.status_poll_interval
     retries_total = CONF.kubernetes.status_total_retries
+
+    LOG.info("%s retries" % retries_total)
 
     commonutils.interruptable_sleep(CONF.kubernetes.start_prepoll_delay)
 
@@ -61,7 +54,7 @@ def wait_for_status(name, status, read_method, resource_type=None,
         resp = read_method(name=name, **kwargs)
         resp_id = resp.metadata.uid
         current_status = resp.status.phase
-        if not status_method(resp, **kwargs):
+        if resp.status.phase != status:
             i += 1
             commonutils.interruptable_sleep(sleep_time)
         else:
