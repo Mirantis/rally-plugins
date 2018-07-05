@@ -157,6 +157,14 @@ There are the following tasks:
 |                                                    | scale_replicas, scale revert and delete       |
 |                                                    | replicaset then.                              |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_deployment            | Create deployment with number of replicas,    |
+|                                                    | wait for all replicas are ready and delete    |
+|                                                    | deployment then.                              |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_rollout_and_delete_deployment    | Create deployment with number of replicas,    |
+|                                                    | wait for all replicas are ready, rollout with |
+|                                                    | some changes and delete deployment then.      |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -666,3 +674,70 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-scale-and-delete-replicaset.yaml
+
+Kubernetes.create_and_delete_deployment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in deployment    |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| name          | string | deployment custom name, default is  |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for status if True             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-deployment.yaml
+
+Kubernetes.create_rollout_and_delete_deployment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in deployment    |
++---------------+--------+-------------------------------------+
+| env           | array  | array of mappings representing      |
+|               |        | kubernetes container's env          |
++---------------+--------+-------------------------------------+
+| resources     | map    | map representing container resources|
+|               |        | requirements                        |
++---------------+--------+-------------------------------------+
+| changes       | map    | map with allowed keys env, resources|
+|               |        | or image for rollout deployment     |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| name          | string | replicaset custom name, default is  |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for status if True             |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-rollout-and-delete-deployment.yaml
