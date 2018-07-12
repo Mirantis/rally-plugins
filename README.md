@@ -75,5 +75,8 @@ Next scenarios are implemented in *rally-plugins*:
   - create namespace and namespaced deployment and delete it then
   - create namespace and namespaced deployment, rollout it with changes and
     delete it then
+  - create namespace and namespaced statefulset and delete it then
+  - create namespace and namespaced statefulset, scale it with number
+    of replicas, scale revert and delete statefulset then
 
 For more details how to run and analyze tests, see `docs\source` directory. 

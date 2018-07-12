@@ -165,6 +165,15 @@ There are the following tasks:
 |                                                    | wait for all replicas are ready, rollout with |
 |                                                    | some changes and delete deployment then.      |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_statefulset           | Create statefulset with number of replicas,   |
+|                                                    | wait for all replicas are ready and delete    |
+|                                                    | statefulset then.                             |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_scale_and_delete_statefulset     | Create statefulset with number of replicas,   |
+|                                                    | wait for all replicas are ready, scale with   |
+|                                                    | scale_replicas, scale revert and delete       |
+|                                                    | statefulset then.                             |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -741,3 +750,63 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-rollout-and-delete-deployment.yaml
+
+Kubernetes.create_and_delete_statefulset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in replicaset    |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| name          | string | replicaset custom name, default is  |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for status if True             |
++---------------+--------+-------------------------------------+
+
+The task supports *rps* and *constant* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-statefulset.yaml
+
+Kubernetes.create_scale_and_delete_statefulset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| replicas      | number | number of replicas in replicaset    |
++---------------+--------+-------------------------------------+
+| scale_replicas| number | number of replicas to scale         |
++---------------+--------+-------------------------------------+
+| image         | string | image used in replica's manifests   |
++---------------+--------+-------------------------------------+
+| name          | string | replicaset custom name, default is  |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command, default is None  |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for status if True             |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-scale-and-delete-statefulset.yaml
