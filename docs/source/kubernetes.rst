@@ -174,6 +174,9 @@ There are the following tasks:
 |                                                    | scale_replicas, scale revert and delete       |
 |                                                    | statefulset then.                             |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_and_delete_job                   | Create job with "Never" restart policy,       |
+|                                                    | wait for successful status and delete it then.|                             |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -810,3 +813,29 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-scale-and-delete-statefulset.yaml
+
+Kubernetes.create_and_delete_job
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| name          | string | job custom name, default is random  |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command                   |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for succeeded job if True      |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-and-delete-job.yaml
