@@ -80,5 +80,7 @@ Next scenarios are implemented in *rally-plugins*:
     of replicas, scale revert and delete statefulset then
   - create namespace and namespaced job with "Never" restart policy, wait for
     successful status and delete it then.
+  - create namespace and namespaced daemonset, check that each node has the
+    daemonset pod and delete daemonset then.
 
 For more details how to run and analyze tests, see `docs\source` directory. 

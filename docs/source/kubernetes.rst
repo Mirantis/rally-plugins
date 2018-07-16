@@ -177,6 +177,9 @@ There are the following tasks:
 | Kubernetes.create_and_delete_job                   | Create job with "Never" restart policy,       |
 |                                                    | wait for successful status and delete it then.|                             |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_daemonset       | Create daemonset, check each node contains the|
+|                                                    | daemonset pods and delete daemonset then.     |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -839,3 +842,30 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-and-delete-job.yaml
+
+Kubernetes.create_check_and_delete_daemonset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| name          | string | daemonset custom name, default is   |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command                   |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for all pods will be ready     |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-daemonset.yaml
