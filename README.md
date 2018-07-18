@@ -82,5 +82,8 @@ Next scenarios are implemented in *rally-plugins*:
     successful status and delete it then.
   - create namespace and namespaced daemonset, check that each node has the
     daemonset pod and delete daemonset then.
+  - create namespace, namespaced pod, add clusterIP service with selector on
+    pod, get pod endpoints and run job, which curl all these endoints, then
+    delete them all.
 
 For more details how to run and analyze tests, see `docs\source` directory. 

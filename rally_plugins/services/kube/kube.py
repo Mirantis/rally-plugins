@@ -47,8 +47,6 @@ def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
     sleep_time = CONF.kubernetes.status_poll_interval
     retries_total = CONF.kubernetes.status_total_retries
 
-    LOG.info("%s retries" % retries_total)
-
     commonutils.interruptable_sleep(CONF.kubernetes.start_prepoll_delay)
 
     i = 0
@@ -338,14 +336,17 @@ class Kubernetes(service.Service):
         return self.v1_client.read_namespaced_pod(name, namespace=namespace)
 
     @atomic.action_timer("kubernetes.create_pod")
-    def create_pod(self, name, image, namespace, command=None,
-                   status_wait=True):
+    def create_pod(self, name, image, namespace, command=None, port=None,
+                   protocol=None, labels=None, status_wait=True):
         """Create pod and wait until status phase won't be Running.
 
         :param name: pod's custom name
         :param image: pod's image
         :param namespace: chosen namespace to create pod into
         :param command: array of strings which represents container command
+        :param port: integer that represents container port
+        :param protocol: container port's protocol
+        :param labels: additional labels for pod
         :param status_wait: wait pod for Running status
         """
         name = name or self.generate_random_name()
@@ -356,6 +357,10 @@ class Kubernetes(service.Service):
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
+        if port is not None and isinstance(port, int) and port > 0:
+            container_spec["ports"] = [{"containerPort": port}]
+            if protocol is not None:
+                container_spec["ports"][0]["protocol"] = protocol
 
         manifest = {
             "apiVersion": "v1",
@@ -371,6 +376,9 @@ class Kubernetes(service.Service):
                 "containers": [container_spec]
             }
         }
+
+        if labels:
+            manifest["metadata"]["labels"].update(labels)
 
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
@@ -407,6 +415,65 @@ class Kubernetes(service.Service):
                 wait_for_not_found(name,
                                    read_method=self.get_pod,
                                    namespace=namespace)
+
+    @atomic.action_timer("kubernetes.get_service")
+    def get_service(self, name, namespace):
+        return self.v1_client.read_namespaced_service(
+            name,
+            namespace=namespace
+        )
+
+    @atomic.action_timer("kubernetes.create_service")
+    def create_service(self, name, namespace, port, protocol, type,
+                       labels=None):
+        """Create service with some type, port and protocol.
+
+        :param name: service name
+        :param namespace: service namespace
+        :param port: service port
+        :param protocol: service port protocol
+        :param type: service type, e.g. ClusterIP or NodePort
+        :param labels: labels for service selector
+        """
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "name": name,
+                "labels": labels
+            },
+            "spec": {
+                "type": type,
+                "ports": [
+                    {
+                        "port": port,
+                        "protocol": protocol
+                    }
+                ],
+                "selector": labels
+            }
+        }
+
+        self.v1_client.create_namespaced_service(
+            namespace=namespace,
+            body=manifest
+        )
+
+    @atomic.action_timer("kubernetes.get_endpoints")
+    def get_endpoints(self, name, namespace):
+        LOG.info('%s' % self.v1_client.list_endpoints_for_all_namespaces())
+        return self.v1_client.read_namespaced_endpoints(
+            name=name,
+            namespace=namespace
+        )
+
+    @atomic.action_timer("kubernetes.delete_service")
+    def delete_service(self, name, namespace):
+        self.v1_client.delete_namespaced_service(
+            name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
 
     @atomic.action_timer("kube.create_replication_controller")
     def create_rc(self, name, replicas, image, namespace, sleep_time=5,
