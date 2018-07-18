@@ -12,11 +12,14 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import requests
+
 from rally.common import cfg
 from rally.common import utils as commonutils
+from rally.task import atomic
 from rally.task import scenario
 
-from rally_plugins.scenarios.kubernetes import common
+from rally_plugins.scenarios.kubernetes import common as common_scenario
 
 CONF = cfg.CONF
 
@@ -25,7 +28,7 @@ CONF = cfg.CONF
     "Kubernetes.create_check_and_delete_pod_with_cluster_ip_service",
     platform="kubernetes"
 )
-class PodWithClusterIPSvc(common.BaseKubernetesScenario):
+class PodWithClusterIPSvc(common_scenario.BaseKubernetesScenario):
 
     def run(self, image, port, protocol, name=None, command=None,
             status_wait=True):
@@ -98,7 +101,7 @@ class PodWithClusterIPSvc(common.BaseKubernetesScenario):
     "custom_endpoints",
     platform="kubernetes"
 )
-class PodWithClusterIPSvcCustomEndpoints(common.BaseKubernetesScenario):
+class PodWithClusterIPSvcWithEndpoints(common_scenario.BaseKubernetesScenario):
 
     def run(self, image, port, protocol, name=None, command=None,
             status_wait=True):
@@ -158,6 +161,66 @@ class PodWithClusterIPSvcCustomEndpoints(common.BaseKubernetesScenario):
             status_wait=status_wait
         )
         self.client.delete_endpoints(name, namespace=namespace)
+        self.client.delete_service(name, namespace=namespace)
+        self.client.delete_pod(
+            name,
+            namespace=namespace,
+            status_wait=status_wait
+        )
+
+
+@scenario.configure(
+    "Kubernetes.create_check_and_delete_pod_with_node_port_service",
+    platform="kubernetes"
+)
+class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
+
+    def run(self, image, port, protocol, name=None, command=None,
+            status_wait=True):
+        """Create pod and nodePort svc, request pod by port and delete then.
+
+        :param image: pod's image
+        :param port: pod's container port and svc port integer
+        :param protocol: pod's container port and svc port protocol
+        :param name: pod's custom name
+        :param command: pod's array of strings representing command
+        :param status_wait: wait for pod status if True
+        """
+        namespace = self.choose_namespace()
+        labels = {"app": self.generate_random_name()}
+
+        name = self.client.create_pod(
+            name,
+            image=image,
+            namespace=namespace,
+            command=command,
+            port=port,
+            protocol=protocol,
+            labels=labels,
+            status_wait=status_wait
+        )
+
+        self.client.create_service(
+            name,
+            namespace=namespace,
+            port=port,
+            protocol=protocol,
+            type="NodePort",
+            labels=labels
+        )
+
+        svc = self.client.get_service(name, namespace=namespace)
+
+        node_port = svc.spec.ports[0].node_port
+
+        commonutils.interruptable_sleep(CONF.kubernetes.start_prepoll_delay)
+
+        with atomic.ActionTimer(self, "kubernetes.request_node_port_service"):
+            server = self.context["env"]["platforms"]["kubernetes"]["server"]
+            requests.get("http" +
+                         server[server.index(":"):server.rindex(":") + 1] +
+                         str(node_port))
+
         self.client.delete_service(name, namespace=namespace)
         self.client.delete_pod(
             name,

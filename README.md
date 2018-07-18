@@ -88,5 +88,8 @@ Next scenarios are implemented in *rally-plugins*:
   - create namespace, namespaced pod, add clusterIP service without selector
     and with custom endpoints on pod, run job, which curl all these endpoints,
     then delete them all.
+  - create namespace, namespaced pod, add nodePort service with selector on
+    pod, get node port and requests pod with node ip and port, then delete
+    them all.
 
 For more details how to run and analyze tests, see `docs\source` directory. 
