@@ -25,7 +25,7 @@ CONF = cfg.CONF
     "Kubernetes.create_check_and_delete_pod_with_cluster_ip_service",
     platform="kubernetes"
 )
-class CreateCheckAndDeletePodWithClusterIPSvc(common.BaseKubernetesScenario):
+class PodWithClusterIPSvc(common.BaseKubernetesScenario):
 
     def run(self, image, port, protocol, name=None, command=None,
             status_wait=True):
@@ -85,6 +85,79 @@ class CreateCheckAndDeletePodWithClusterIPSvc(common.BaseKubernetesScenario):
             namespace=namespace,
             status_wait=status_wait
         )
+        self.client.delete_service(name, namespace=namespace)
+        self.client.delete_pod(
+            name,
+            namespace=namespace,
+            status_wait=status_wait
+        )
+
+
+@scenario.configure(
+    "Kubernetes.create_check_and_delete_pod_with_cluster_ip_service_"
+    "custom_endpoints",
+    platform="kubernetes"
+)
+class PodWithClusterIPSvcCustomEndpoints(common.BaseKubernetesScenario):
+
+    def run(self, image, port, protocol, name=None, command=None,
+            status_wait=True):
+        """Create pod and clusterIP svc with custom endpoints.
+
+        Create pod and clusterIP svc with custom endpoints, check it with curl
+        job and delete them all then.
+
+        :param image: pod's image
+        :param port: pod's container port and svc port integer
+        :param protocol: pod's container port and svc port protocol
+        :param name: pod's custom name
+        :param command: pod's array of strings representing command
+        :param status_wait: wait for pod status if True
+        """
+        namespace = self.choose_namespace()
+
+        name = self.client.create_pod(
+            name,
+            image=image,
+            namespace=namespace,
+            command=command,
+            port=port,
+            protocol=protocol,
+            status_wait=status_wait
+        )
+
+        self.client.create_service(
+            name,
+            namespace=namespace,
+            port=port,
+            protocol=protocol,
+            type="ClusterIP"
+        )
+
+        ip = self.client.get_pod(name, namespace=namespace).status.pod_ip
+
+        self.client.create_endpoints(
+            name,
+            namespace=namespace,
+            ip=ip,
+            port=port
+        )
+
+        command = ["curl", "%s:%s" % (ip, port)]
+        self.client.create_job(
+            name,
+            namespace=namespace,
+            image="appropriate/curl",
+            command=command,
+            status_wait=True
+        )
+
+        self.client.delete_job(
+            name,
+            namespace=namespace,
+            status_wait=status_wait
+        )
+        self.client.delete_endpoints(name, namespace=namespace)
         self.client.delete_service(name, namespace=namespace)
         self.client.delete_pod(
             name,

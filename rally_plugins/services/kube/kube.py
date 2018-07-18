@@ -467,6 +467,42 @@ class Kubernetes(service.Service):
             namespace=namespace
         )
 
+    @atomic.action_timer("kubernetes.create_endpoints")
+    def create_endpoints(self, name, namespace, ip, port):
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "Endpoints",
+            "metadata": {
+                "name": name
+            },
+            "subsets": [
+                {
+                    "addresses": [
+                        {
+                            "ip": ip
+                        }
+                    ],
+                    "ports": [
+                        {
+                            "port": port
+                        }
+                    ]
+                }
+            ]
+        }
+        self.v1_client.create_namespaced_endpoints(
+            namespace=namespace,
+            body=manifest
+        )
+
+    @atomic.action_timer("kubernetes.delete_endpoints")
+    def delete_endpoints(self, name, namespace):
+        self.v1_client.delete_namespaced_endpoints(
+            name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
+
     @atomic.action_timer("kubernetes.delete_service")
     def delete_service(self, name, namespace):
         self.v1_client.delete_namespaced_service(
