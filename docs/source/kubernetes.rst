@@ -180,6 +180,24 @@ There are the following tasks:
 | Kubernetes.create_check_and_delete_daemonset       | Create daemonset, check each node contains the|
 |                                                    | daemonset pods and delete daemonset then.     |
 +----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_pod             | Create pod and clusterIP service with selector|
+| _with_cluster_ip_service                           | on the pod, run job with `appropriate/curl`   |
+|                                                    | image and curl command for pod endpoints, wait|
+|                                                    | until job won't successfully finished and     |
+|                                                    | delete all resources then.                    |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_pod             | Create pod and clusterIP service w/o selector |
+| _with_cluster_ip_service_custom_endpoints          | but with custom endpoints, run job with       |
+|                                                    | `appropriate/curl` image and curl command for |
+|                                                    | pod endpoints, wait until job won't           |
+|                                                    | successfully finished and delete all resources|
+|                                                    | then. This scenario tests not only service,   |
+|                                                    | Endpoints resource too.                       |
++----------------------------------------------------+-----------------------------------------------+
+| Kubernetes.create_check_and_delete_pod             | Create pod and nodePort service with selector |
+| _with_node_port_service                            | on the pod, request server ip with created    |
+|                                                    | node port and delete all resources then.      |
++----------------------------------------------------+-----------------------------------------------+
 
 Consider each task separately.
 
@@ -869,3 +887,108 @@ To run the test, run next command:
 ..
 
   rally task start samples/scenarios/kubernetes/create-check-and-delete-daemonset.yaml
+
+Kubernetes.create_check_and_delete_pod_with_cluster_ip_service
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| port          | integer| port used as container port and in  |
+|               |        | service                             |
++---------------+--------+-------------------------------------+
+| protocol      | integer| protocol used as container port     |
+|               |        | protocol and in service             |
++---------------+--------+-------------------------------------+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| name          | string | daemonset custom name, default is   |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command                   |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for all pods will be ready     |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-pod-with-cluster-ip-service.yaml
+
+Kubernetes.create_check_and_delete_pod_with_cluster_ip_service_custom_endpoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| port          | integer| port used as container port and in  |
+|               |        | service                             |
++---------------+--------+-------------------------------------+
+| protocol      | integer| protocol used as container port     |
+|               |        | protocol and in service             |
++---------------+--------+-------------------------------------+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| name          | string | daemonset custom name, default is   |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command                   |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for all pods will be ready     |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-pod-with-cluster-ip-service-custom-endpoints.yaml
+
+Kubernetes.create_check_and_delete_pod_with_node_port_service
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
++---------------+--------+-------------------------------------+
+| Argument      | Type   | Description                         |
++===============+========+=====================================+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| port          | integer| port used as container port and in  |
+|               |        | service                             |
++---------------+--------+-------------------------------------+
+| protocol      | integer| protocol used as container port     |
+|               |        | protocol and in service             |
++---------------+--------+-------------------------------------+
+| image         | string | image used in container's spec      |
++---------------+--------+-------------------------------------+
+| name          | string | daemonset custom name, default is   |
+|               |        | random                              |
++---------------+--------+-------------------------------------+
+| command       | array  | array of strings representing       |
+|               |        | container command                   |
++---------------+--------+-------------------------------------+
+| status_wait   | bool   | wait for all pods will be ready     |
++---------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-pod-with-node-port-service.yaml
