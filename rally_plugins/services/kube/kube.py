@@ -69,14 +69,12 @@ def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
                 timeout=(retries_total * sleep_time))
 
 
-def wait_for_ready_replicas(name, read_method, resource_type=None,
-                            replicas=None, **kwargs):
+def wait_for_ready_replicas(name, read_method, resource_type=None, **kwargs):
     """Util method for polling status until it won't be equals to `status`.
 
     :param name: resource name
     :param read_method: method to poll
     :param resource_type: resource type for extended exceptions
-    :param replicas: replicaset expected replicas for extended exceptions
     :param kwargs: additional kwargs for read_method
     """
     sleep_time = CONF.kubernetes.status_poll_interval
@@ -99,7 +97,7 @@ def wait_for_ready_replicas(name, read_method, resource_type=None,
             return
         if i == retries_total:
             raise exceptions.TimeoutException(
-                desired_status=replicas,
+                desired_status=ready_replicas,
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
@@ -1507,8 +1505,8 @@ class Kubernetes(service.Service):
                     "kubernetes.wait_for_replicaset_become_ready"):
                 wait_for_ready_replicas(
                     name,
+                    resource_type="ReplicaSet",
                     read_method=self.get_replicaset,
-                    replicas=replicas,
                     namespace=namespace)
         return name
 
@@ -1525,8 +1523,8 @@ class Kubernetes(service.Service):
                     "kubernetes.wait_for_replicaset_scale"):
                 wait_for_ready_replicas(
                     name,
+                    resource_type="ReplicaSet",
                     read_method=self.get_replicaset,
-                    replicas=replicas,
                     namespace=namespace)
 
     @atomic.action_timer("kubernetes.delete_replicaset")
@@ -1626,8 +1624,8 @@ class Kubernetes(service.Service):
                     "kubernetes.wait_for_deployment_become_ready"):
                 wait_for_ready_replicas(
                     name,
+                    resource_type="Deployment",
                     read_method=self.get_deployment,
-                    replicas=replicas,
                     namespace=namespace)
         return name
 
@@ -1670,8 +1668,8 @@ class Kubernetes(service.Service):
                     "kubernetes.wait_for_deployment_rollout"):
                 wait_for_ready_replicas(
                     name,
+                    resource_type="Deployment",
                     read_method=self.get_deployment,
-                    replicas=replicas,
                     namespace=namespace)
 
     @atomic.action_timer("kubernetes.delete_deployment")
@@ -1770,7 +1768,6 @@ class Kubernetes(service.Service):
                 wait_for_ready_replicas(name,
                                         read_method=self.get_statefulset,
                                         resource_type="StatefulSet",
-                                        replicas=replicas,
                                         namespace=namespace)
         return name
 
@@ -1797,7 +1794,6 @@ class Kubernetes(service.Service):
                 wait_for_ready_replicas(name,
                                         read_method=self.get_statefulset,
                                         resource_type="StatefulSet",
-                                        replicas=replicas,
                                         namespace=namespace)
 
     @atomic.action_timer("kubernetes.delete_statefulset")
