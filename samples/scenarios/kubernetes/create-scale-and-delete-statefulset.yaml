@@ -16,6 +16,10 @@ subtasks:
     namespaces:
       count: 3
       with_serviceaccount: true
+    kubernetes.cfg:
+      prepoll_delay: 1
+      retries_total: 150
+      sleep_time: 1
 - title: Run create/scale/delete statefulset with rps runner
   scenario:
     Kubernetes.create_scale_and_delete_statefulset:
@@ -30,3 +34,7 @@ subtasks:
     namespaces:
       count: 3
       with_serviceaccount: true
+    kubernetes.cfg:
+      prepoll_delay: 1
+      retries_total: 150
+      sleep_time: 1
