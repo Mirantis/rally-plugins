@@ -2,7 +2,7 @@
   Kubernetes.create_check_and_delete_hostpath_volume:
   -
     args:
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
       volume_type: Directory
       volume_path: /var/log/
@@ -24,7 +24,7 @@
         max: 0
   -
     args:
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
       volume_type: Directory
       volume_path: /var/log/

@@ -5,7 +5,7 @@ subtasks:
 - title: Run a single workload with create/check/delete NodePort service
   scenario:
     Kubernetes.create_check_and_delete_pod_with_node_port_service:
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       port: 80
       protocol: TCP
   runner:
@@ -21,7 +21,7 @@ subtasks:
 - title: Run create/check/delete NodePort service with rps runner
   scenario:
     Kubernetes.create_check_and_delete_pod_with_node_port_service:
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       port: 80
       protocol: TCP
   runner:

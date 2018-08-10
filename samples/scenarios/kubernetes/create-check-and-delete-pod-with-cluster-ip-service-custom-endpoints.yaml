@@ -7,7 +7,7 @@ subtasks:
 - title: Run a single workload with create/check/delete clusterIP service with custom endpoints
   scenario:
     Kubernetes.create_check_and_delete_pod_with_cluster_ip_service_custom_endpoints:
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       port: 80
       protocol: TCP
   runner:
@@ -23,7 +23,7 @@ subtasks:
 - title: Run create/check/delete clusterIP with custom endpoints service with rps runner
   scenario:
     Kubernetes.create_check_and_delete_pod_with_cluster_ip_service_custom_endpoints:
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       port: 80
       protocol: TCP
   runner:

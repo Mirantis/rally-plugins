@@ -20,7 +20,7 @@
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
       sleep_time: 1
       retries_total: 50
@@ -56,7 +56,7 @@
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
       sleep_time: 1
       retries_total: 50
