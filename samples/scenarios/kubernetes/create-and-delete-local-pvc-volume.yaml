@@ -12,15 +12,13 @@
           required:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: kubernetes.io/hostname
-                operator: In
-                values:
-                - minikube
+                - key: node-role.kubernetes.io/node
+                  operator: Exists
       persistent_volume_claim:
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: kubernetes/pause
       mount_path: /opt/check
       sleep_time: 1
       retries_total: 50
@@ -48,15 +46,13 @@
           required:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: kubernetes.io/hostname
-                operator: In
-                values:
-                - minikube
+                - key: node-role.kubernetes.io/node
+                  operator: Exists
       persistent_volume_claim:
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: kubernetes/pause
       mount_path: /opt/check
       sleep_time: 1
       retries_total: 50

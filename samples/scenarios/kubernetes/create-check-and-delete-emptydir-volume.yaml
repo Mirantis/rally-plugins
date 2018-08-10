@@ -2,7 +2,10 @@
   Kubernetes.create_check_and_delete_emptydir_volume:
   -
     args:
-      image: nginx
+      image: busybox
+      command:
+      - "sleep"
+      - "3600"
       mount_path: /opt/check
       check_cmd:
       - ls
@@ -22,7 +25,10 @@
         max: 0
   -
     args:
-      image: nginx
+      image: busybox
+      command:
+      - "sleep"
+      - "3600"
       mount_path: /opt/check
       check_cmd:
       - ls
