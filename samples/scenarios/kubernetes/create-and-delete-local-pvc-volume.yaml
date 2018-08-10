@@ -20,7 +20,7 @@
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: kubernetes/pause
       mount_path: /opt/check
       sleep_time: 1
       retries_total: 50
@@ -56,7 +56,7 @@
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: kubernetes/pause
       mount_path: /opt/check
       sleep_time: 1
       retries_total: 50

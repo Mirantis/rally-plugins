@@ -20,7 +20,10 @@
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: busybox
+      command:
+      - "sleep"
+      - "3600"
       mount_path: /opt/check
       check_cmd:
       - ls
@@ -59,7 +62,10 @@
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: nginx
+      image: busybox
+      command:
+      - "sleep"
+      - "3600"
       mount_path: /opt/check
       check_cmd:
       - ls

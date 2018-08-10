@@ -2,7 +2,10 @@
   Kubernetes.create_check_and_delete_hostpath_volume:
   -
     args:
-      image: nginx
+      image: busybox
+      command:
+      - "sleep"
+      - "3600"
       mount_path: /opt/check
       volume_type: Directory
       volume_path: /var/log/
@@ -24,7 +27,10 @@
         max: 0
   -
     args:
-      image: nginx
+      image: busybox
+      command:
+      - "sleep"
+      - "3600"
       mount_path: /opt/check
       volume_type: Directory
       volume_path: /var/log/
