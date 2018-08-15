@@ -1924,6 +1924,22 @@ class Kubernetes(service.Service):
     def list_node(self):
         return self.v1_client.list_node()
 
+    def list_filtered_nodes(self, node_labels=None):
+        """Return list of optionally filtered nodes names.
+
+        :param node_labels: map, each key is a label name with some value
+        """
+        node_meta = [node.metadata for node in self.list_node().items]
+        if node_labels is None:
+            return [meta.name for meta in node_meta]
+
+        node_names = []
+        for meta in node_meta:
+            for k, v in meta.labels.items():
+                if k in node_labels and node_labels[k] == v:
+                    node_names.append(meta.name)
+        return node_names
+
     @atomic.action_timer("kubernetes.get_daemonset")
     def get_daemonset(self, name, namespace, **kwargs):
         return self.v1beta1_ext.read_namespaced_daemon_set(
@@ -1932,18 +1948,18 @@ class Kubernetes(service.Service):
         )
 
     @atomic.action_timer("kubernetes.create_daemonset")
-    def create_daemonset(self, name, namespace, image, command=None,
-                         status_wait=True):
+    def create_daemonset(self, namespace, image, command=None,
+                         node_labels=None, status_wait=True):
         """Create daemon set and optionally wait for status.
 
-        :param name: daemon set name
         :param namespace: daemon set namespace
         :param image: daemon set template image
         :param command: daemon set template command
+        :param node_labels: map, each key is a label name with some value
         :param status_wait: wait for status if True
         :return: name and app
         """
-        name = name or self.generate_random_name()
+        name = self.generate_random_name()
         app = self.generate_random_name()
 
         container_spec = {
@@ -1998,7 +2014,7 @@ class Kubernetes(service.Service):
                     resp = self.get_daemonset(name=name, namespace=namespace)
                     resp_id = resp.metadata.uid
                     current_status = resp.status.number_ready
-                    nodes_total = len(self.list_node().items)
+                    nodes_total = len(self.list_filtered_nodes(node_labels))
                     if current_status != nodes_total:
                         i += 1
                         commonutils.interruptable_sleep(sleep_time)
@@ -2015,8 +2031,8 @@ class Kubernetes(service.Service):
         return name, app
 
     @atomic.action_timer("kubernetes.check_daemonset_pods")
-    def check_daemonset(self, namespace, app):
-        node_names = [node.metadata.name for node in self.list_node().items]
+    def check_daemonset(self, namespace, app, node_labels=None):
+        node_names = self.list_filtered_nodes(node_labels)
 
         pods = self.v1_client.list_namespaced_pod(
             namespace=namespace,
@@ -2028,8 +2044,8 @@ class Kubernetes(service.Service):
 
         if set(node_names).symmetric_difference(pods_nodes):
             raise exceptions.RallyException(
-                message="DaemonSet pods started incorrectly: there are nodes "
-                        "without the daemonSet pods")
+                message="DaemonSet check failed: number of selected nodes not "
+                        "equals to number of daemonSet pods")
 
     @atomic.action_timer("kubernetes.delete_daemonset")
     def delete_daemonset(self, name, namespace, status_wait=True):
