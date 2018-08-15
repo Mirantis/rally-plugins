@@ -21,6 +21,7 @@ from rally.task import validation
 from rally_openstack import consts
 from rally_openstack import scenario
 from rally_plugins.services.grafana import grafana as grafana_service
+from rally_plugins.scenarios import common
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -32,9 +33,9 @@ LOG = logging.getLogger(__name__)
                flavor={"type": "nova_flavor"})
 @validation.add("required_services", services=[consts.Service.NOVA])
 @validation.add("required_platform", platform="openstack", admin=True)
-@scenario.configure(context={"cleanup@openstack": ["nova"]},
-                    name="GrafanaMetrics.push_metric_from_instance",
-                    platform="openstack")
+@common.configure(context={"cleanup@openstack": ["nova"]},
+                  name="GrafanaMetrics.push_metric_from_instance",
+                  platform="openstack")
 class PushMetricsInstance(scenario.OpenStackScenario):
     """Test monitoring system by pushing metric from nova server and check it.
 
