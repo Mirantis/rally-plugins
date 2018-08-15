@@ -22,6 +22,7 @@ from rally.task import types
 from rally.task import utils
 from rally.task import validation
 
+import rally_openstack
 from rally_openstack import consts
 from rally_openstack import scenario
 
@@ -31,13 +32,6 @@ LOG = logging.getLogger(__name__)
 """Scenario for Elasticsearch logging system."""
 
 
-@types.convert(image={"type": "glance_image"},
-               flavor={"type": "nova_flavor"})
-@validation.add("required_services", services=[consts.Service.NOVA])
-@validation.add("required_platform", platform="openstack", admin=True)
-@scenario.configure(context={"cleanup@openstack": ["nova"]},
-                    name="ElasticsearchLogging.log_instance",
-                    platform="openstack")
 class ElasticsearchLogInstanceName(scenario.OpenStackScenario):
     """Test logging instance in conjunction with Elasticsearch system.
 
@@ -104,3 +98,15 @@ class ElasticsearchLogInstanceName(scenario.OpenStackScenario):
         self._create_server(image, flavor, seed)
         self._check_server_name(seed, logging_vip, elasticsearch_port,
                                 sleep_time, retries_total)
+
+
+if rally_openstack.__rally_version__ < (1, 0):
+    @types.convert(image={"type": "glance_image"},
+                   flavor={"type": "nova_flavor"})
+    @validation.add("required_services", services=[consts.Service.NOVA])
+    @validation.add("required_platform", platform="openstack", admin=True)
+    @scenario.configure(context={"cleanup@openstack": ["nova"]},
+                        name="ElasticsearchLogging.log_instance",
+                        platform="openstack")
+    class ElasticsearchLogInstanceNameInstalled(ElasticsearchLogInstanceName):
+        pass

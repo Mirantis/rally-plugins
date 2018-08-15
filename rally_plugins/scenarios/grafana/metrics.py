@@ -18,6 +18,7 @@ from rally.task import types
 from rally.task import utils
 from rally.task import validation
 
+import rally_openstack
 from rally_openstack import consts
 from rally_openstack import scenario
 from rally_plugins.services.grafana import grafana as grafana_service
@@ -28,13 +29,6 @@ LOG = logging.getLogger(__name__)
 """Scenarios for Pushgateway and Grafana metrics."""
 
 
-@types.convert(image={"type": "glance_image"},
-               flavor={"type": "nova_flavor"})
-@validation.add("required_services", services=[consts.Service.NOVA])
-@validation.add("required_platform", platform="openstack", admin=True)
-@scenario.configure(context={"cleanup@openstack": ["nova"]},
-                    name="GrafanaMetrics.push_metric_from_instance",
-                    platform="openstack")
 class PushMetricsInstance(scenario.OpenStackScenario):
     """Test monitoring system by pushing metric from nova server and check it.
 
@@ -114,7 +108,6 @@ class PushMetricsInstance(scenario.OpenStackScenario):
         self.assertTrue(checked)
 
 
-@scenario.configure(name="GrafanaMetrics.push_metric_locally")
 class PushMetricLocal(scenario.OpenStackScenario):
     """Test monitoring system availability with local pushing random metric."""
 
@@ -149,3 +142,20 @@ class PushMetricLocal(scenario.OpenStackScenario):
                                            sleep_time=sleep_time,
                                            retries_total=retries_total)
         self.assertTrue(checked)
+
+
+if rally_openstack.__rally_version__ < (1, 0):
+    @types.convert(image={"type": "glance_image"},
+                   flavor={"type": "nova_flavor"})
+    @validation.add("required_services", services=[consts.Service.NOVA])
+    @validation.add("required_platform", platform="openstack", admin=True)
+    @scenario.configure(context={"cleanup@openstack": ["nova"]},
+                        name="GrafanaMetrics.push_metric_from_instance",
+                        platform="openstack")
+    class PushMetricInstanceInstalled(PushMetricsInstance):
+        pass
+
+
+    @scenario.configure(name="GrafanaMetrics.push_metric_locally")
+    class PushMetricLocallyInstalled(PushMetricLocal):
+        pass
