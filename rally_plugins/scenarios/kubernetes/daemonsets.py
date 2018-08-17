@@ -21,24 +21,28 @@ from rally_plugins.scenarios.kubernetes import common as common_scenario
                     platform="kubernetes")
 class CreateCheckAndDeleteDaemonSet(common_scenario.BaseKubernetesScenario):
 
-    def run(self, image, command=None, name=None, status_wait=True):
+    def run(self, image, command=None, node_labels=None, status_wait=True):
         """Create daemon set, check it's pods on each node and delete it then.
 
         :param image: daemon set template image
         :param command: daemon set template command
-        :param name: daemon set custom name
+        :param node_labels: map of labels, by which nodes would be filtered
         :param status_wait: wait for status if True
         """
         namespace = self.choose_namespace()
 
         name, app = self.client.create_daemonset(
-            name,
             namespace=namespace,
             image=image,
             command=command,
+            node_labels=node_labels,
             status_wait=status_wait
         )
-        self.client.check_daemonset(namespace=namespace, app=app)
+        self.client.check_daemonset(
+            namespace=namespace,
+            app=app,
+            node_labels=node_labels
+        )
         self.client.delete_daemonset(
             name,
             namespace=namespace,

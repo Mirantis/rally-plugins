@@ -6,6 +6,8 @@ subtasks:
   scenario:
     Kubernetes.create_check_and_delete_daemonset:
       image: kubernetes/pause
+      node_labels:
+        kubernetes.io/hostname: minikube
   runner:
     constant:
       concurrency: 2
@@ -18,6 +20,8 @@ subtasks:
   scenario:
     Kubernetes.create_check_and_delete_daemonset:
       image: kubernetes/pause
+      node_labels:
+        kubernetes.io/hostname: minikube
   runner:
     rps:
       rps: 2
