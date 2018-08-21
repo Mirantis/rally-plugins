@@ -1,7 +1,10 @@
 ---
-  Kubernetes.create_check_and_delete_local_persistent_volume:
-  -
-    args:
+version: 2
+title: Create, read, check and delete pod with local persistent volume
+subtasks:
+- title: Run a single workload with create/read/check/delete pod with local PVC
+  scenario:
+    Kubernetes.create_and_delete_pod_with_local_persistent_volume:
       persistent_volume:
         size: 1Gi
         volume_mode: Block
@@ -12,36 +15,33 @@
           required:
             nodeSelectorTerms:
             - matchExpressions:
-                - key: node-role.kubernetes.io/node
-                  operator: Exists
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
       persistent_volume_claim:
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: busybox
-      command:
-      - "sleep"
-      - "3600"
+      image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
       check_cmd:
       - ls
       - /opt/check
       sleep_time: 1
       retries_total: 50
-    runner:
-      type: constant
-      times: 10
+  runner:
+    constant:
       concurrency: 2
-    context:
-      kubernetes.local_storageclass: {}
-      kubernetes.namespaces:
-        count: 3
-        with_serviceaccount: yes
-    sla:
-      failure_rate:
-        max: 0
-  -
-    args:
+      times: 10
+  contexts:
+    namespaces:
+      count: 3
+      with_serviceaccount: true
+    local_storageclass: {}
+- title: Run create/read/check/delete pod with local PVC with rps runner
+  scenario:
+    Kubernetes.create_and_delete_pod_with_local_persistent_volume:
       persistent_volume:
         size: 1Gi
         volume_mode: Block
@@ -52,31 +52,27 @@
           required:
             nodeSelectorTerms:
             - matchExpressions:
-                - key: node-role.kubernetes.io/node
-                  operator: Exists
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
       persistent_volume_claim:
         size: 250Mi
         access_modes:
         - ReadWriteOnce
-      image: busybox
-      command:
-      - "sleep"
-      - "3600"
+      image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
       check_cmd:
       - ls
       - /opt/check
       sleep_time: 1
       retries_total: 50
-    runner:
-      type: rps
-      times: 10
+  runner:
+    rps:
       rps: 2
-    context:
-      kubernetes.local_storageclass: {}
-      kubernetes.namespaces:
-        count: 3
-        with_serviceaccount: yes
-    sla:
-      failure_rate:
-        max: 0
+      times: 10
+  contexts:
+    namespaces:
+      count: 3
+      with_serviceaccount: true
+    local_storageclass: {}

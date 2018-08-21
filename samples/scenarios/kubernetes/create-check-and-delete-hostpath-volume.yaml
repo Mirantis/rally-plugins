@@ -1,52 +1,50 @@
 ---
-  Kubernetes.create_check_and_delete_hostpath_volume:
-  -
-    args:
+version: 2
+title: Create, read, check and delete pod with hostPath volume
+subtasks:
+- title: Run a single workload with create/read/check/delete pod with hostPath volume
+  scenario:
+    Kubernetes.create_and_delete_pod_with_hostpath_volume:
       image: busybox
       command:
-      - "sleep"
+      - sleep
       - "3600"
       mount_path: /opt/check
-      volume_type: Directory
-      volume_path: /var/log/
       check_cmd:
       - ls
       - /opt/check
       sleep_time: 1
       retries_total: 40
-    runner:
-      type: constant
+      volume_type: Directory
+      volume_path: /tmp/
+  runner:
+    constant:
       concurrency: 2
       times: 10
-    context:
-      kubernetes.namespaces:
-        count: 3
-        with_serviceaccount: yes
-    sla:
-      failure_rate:
-        max: 0
-  -
-    args:
+  contexts:
+    namespaces:
+      count: 3
+      with_serviceaccount: true
+- title: Run create/read/check/delete pod with hostPath volume with rps runner
+  scenario:
+    Kubernetes.create_and_delete_pod_with_hostpath_volume:
       image: busybox
       command:
-      - "sleep"
+      - sleep
       - "3600"
       mount_path: /opt/check
-      volume_type: Directory
-      volume_path: /var/log/
       check_cmd:
       - ls
       - /opt/check
       sleep_time: 1
       retries_total: 40
-    runner:
-      type: rps
+      volume_type: Directory
+      volume_path: /tmp/
+  runner:
+    rps:
       rps: 2
       times: 10
-    context:
-      kubernetes.namespaces:
-        count: 3
-        with_serviceaccount: yes
-    sla:
-      failure_rate:
-        max: 0
+  contexts:
+    namespaces:
+      count: 3
+      with_serviceaccount: true
