@@ -12,107 +12,91 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from rally.common import logging
 from rally.task import scenario
 
-from rally_plugins.scenarios.kubernetes import common
-
-LOG = logging.getLogger(__name__)
+from rally_plugins.scenarios.kubernetes import common as common_scenario
 
 
-@scenario.configure(name="Kubernetes.create_delete_replication_controller",
+@scenario.configure(name="Kubernetes.create_and_delete_replication_controller",
                     platform="kubernetes")
-class RCCreateAndDelete(common.KubernetesScenario, scenario.Scenario):
+class RCCreateAndDelete(common_scenario.BaseKubernetesScenario):
     """Kubernetes replication controller create and delete test.
 
-    Choose created namespace, create RC with defined image and number of
-    replicas, wait until it won't be running and delete it after.
+    Choose created namespace, create replication controller with defined image
+    and number of replicas, wait until it won't be running and delete it after.
     """
 
-    def run(self, replicas, image, sleep_time=5, retries_total=30,
-            command=None):
+    def run(self, image, replicas, command=None, status_wait=True):
         """Create and delete replication controller.
 
-        :param replicas: number of replicas for RC
-        :param image: RC image
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
+        :param replicas: number of replicas for replication controller
+        :param image: replication controller image
         :param command: array of strings representing container command
+        :param status_wait: wait replication controller status
         """
         namespace = self.choose_namespace()
-        rc = self.generate_random_name()
+        name = self.client.create_rc(
+            replicas=replicas,
+            image=image,
+            namespace=namespace,
+            command=command,
+            status_wait=status_wait
+        )
 
-        # create
-        self.assertTrue(self.client.create_rc(rc, replicas=replicas,
-                                              image=image, namespace=namespace,
-                                              sleep_time=sleep_time,
-                                              retries_total=retries_total,
-                                              command=command))
-
-        # cleanup
-        self.assertTrue(self.client.delete_rc(rc, namespace=namespace,
-                                              sleep_time=sleep_time,
-                                              retries_total=retries_total))
+        self.client.delete_rc(
+            name,
+            namespace=namespace,
+            status_wait=status_wait
+        )
 
 
-@scenario.configure(name="Kubernetes.scale_replication_controller",
-                    platform="kubernetes")
-class RCScalePlugin(common.KubernetesScenario, scenario.Scenario):
+@scenario.configure(
+    name="Kubernetes.create_scale_and_delete_replication_controller",
+    platform="kubernetes"
+)
+class CreateScaleAndDeleteRCPlugin(common_scenario.BaseKubernetesScenario):
     """Kubernetes replication controller scale test.
 
     Create replication controller, scale it with number of replicas,
     scale it with original number of replicas, delete replication controller.
     """
 
-    def run(self, image, replicas, scale_replicas, sleep_time=5,
-            retries_total=30, command=None):
-        """Create RC, scale for number of replicas and then delete it.
+    def run(self, image, replicas, scale_replicas, command=None,
+            status_wait=True):
+        """Create RC, scale with replicas, revert scale and then delete it.
 
         :param image: RC pod template image
         :param replicas: original number of replicas
         :param scale_replicas: number of replicas to scale
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
         :param command: array of strings representing container command
+        :param status_wait: wait replication controller status
         """
-        rc = self.generate_random_name()
         namespace = self.choose_namespace()
 
-        # create
-        self.assertTrue(self.client.create_rc(
-            rc,
+        name = self.client.create_rc(
             namespace=namespace,
             replicas=replicas,
             image=image,
-            sleep_time=sleep_time,
-            retries_total=retries_total,
-            command=command
-        ))
+            command=command,
+            status_wait=status_wait
+        )
 
-        # scale
-        self.assertTrue(self.client.scale_rc(
-            rc,
+        self.client.scale_rc(
+            name,
             namespace=namespace,
             replicas=scale_replicas,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
-        LOG.debug("RC %s scale succeeded" % rc)
+            status_wait=status_wait
+        )
 
-        # revert scaling by new scale
-        self.assertTrue(self.client.scale_rc(
-            rc,
+        self.client.scale_rc(
+            name,
             namespace=namespace,
             replicas=replicas,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
-        LOG.debug("RC %s revert scale succeeded" % rc)
+            status_wait=status_wait
+        )
 
-        # delete
-        self.assertTrue(self.client.delete_rc(
-            rc,
+        self.client.delete_rc(
+            name,
             namespace=namespace,
-            sleep_time=sleep_time,
-            retries_total=retries_total
-        ))
+            status_wait=status_wait
+        )

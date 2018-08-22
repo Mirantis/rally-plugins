@@ -1,8 +1,8 @@
 ---
 version: 2
-title: Create, read, check and delete pod with local persistent volume
+title: Create, read and delete pod with local persistent volume
 subtasks:
-- title: Run a single workload with create/read/check/delete pod with local PVC
+- title: Run a single workload with create/read/delete pod with local PVC
   scenario:
     Kubernetes.create_and_delete_pod_with_local_persistent_volume:
       persistent_volume:
@@ -25,11 +25,6 @@ subtasks:
         - ReadWriteOnce
       image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
-      check_cmd:
-      - ls
-      - /opt/check
-      sleep_time: 1
-      retries_total: 50
   runner:
     constant:
       concurrency: 2
@@ -39,7 +34,7 @@ subtasks:
       count: 3
       with_serviceaccount: true
     local_storageclass: {}
-- title: Run create/read/check/delete pod with local PVC with rps runner
+- title: Run create/read/delete pod with local PVC with rps runner
   scenario:
     Kubernetes.create_and_delete_pod_with_local_persistent_volume:
       persistent_volume:
@@ -62,11 +57,6 @@ subtasks:
         - ReadWriteOnce
       image: gcr.io/google-samples/hello-go-gke:1.0
       mount_path: /opt/check
-      check_cmd:
-      - ls
-      - /opt/check
-      sleep_time: 1
-      retries_total: 50
   runner:
     rps:
       rps: 2

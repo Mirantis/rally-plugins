@@ -9,10 +9,8 @@ subtasks:
       mount_path: /opt/check
       volume_type: Directory
       volume_path: /tmp/
-      sleep_time: 1
-      retries_total: 40
-    runner:
-      type: constant
+  runner:
+    constant:
       concurrency: 2
       times: 10
   contexts:
@@ -26,10 +24,8 @@ subtasks:
       mount_path: /opt/check
       volume_type: Directory
       volume_path: /tmp/
-      sleep_time: 1
-      retries_total: 40
-    runner:
-      type: rps
+  runner:
+    rps:
       rps: 2
       times: 10
   contexts:

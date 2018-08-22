@@ -7,8 +7,6 @@ subtasks:
     Kubernetes.create_and_delete_pod_with_emptydir_volume:
       image: kubernetes/pause
       mount_path: /opt/check
-      sleep_time: 1
-      retries_total: 50
   runner:
     constant:
       concurrency: 2
@@ -22,8 +20,6 @@ subtasks:
     Kubernetes.create_and_delete_pod_with_emptydir_volume:
       image: kubernetes/pause
       mount_path: /opt/check
-      sleep_time: 1
-      retries_total: 50
   runner:
     rps:
       rps: 2

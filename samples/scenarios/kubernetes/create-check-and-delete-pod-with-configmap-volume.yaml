@@ -1,8 +1,8 @@
 ---
 version: 2
-title: Create, read and delete pod with configMap volume
+title: Create, read, check and delete pod with configMap volume
 subtasks:
-- title: Run a single workload with create/read/delete pod with configMap volume
+- title: Run a single workload with create/read/check/delete pod with configMap volume
   scenario:
     Kubernetes.create_and_delete_pod_with_configmap_volume:
       image: busybox
@@ -11,11 +11,13 @@ subtasks:
       - "3600"
       mount_path: /var/log/check.txt
       subpath: check.txt
-      sleep_time: 1
-      retries_total: 40
       configmap_data:
         check.txt: |
           test
+      check_cmd:
+      - cat
+      - /var/log/check.txt
+      error_regexp: No such file
   runner:
     constant:
       concurrency: 2
@@ -24,7 +26,7 @@ subtasks:
     namespaces:
       count: 3
       with_serviceaccount: true
-- title: Run create/read/delete pod with configMap volume with rps runner
+- title: Run create/read/check/delete pod with configMap volume with rps runner
   scenario:
     Kubernetes.create_and_delete_pod_with_configmap_volume:
       image: busybox
@@ -33,11 +35,13 @@ subtasks:
       - "3600"
       mount_path: /var/log/check.txt
       subpath: check.txt
-      sleep_time: 1
-      retries_total: 40
       configmap_data:
         check.txt: |
           test
+      check_cmd:
+      - cat
+      - /var/log/check.txt
+      error_regexp: No such file
   runner:
     rps:
       rps: 2

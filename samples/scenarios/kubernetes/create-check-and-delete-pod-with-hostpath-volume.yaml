@@ -13,8 +13,7 @@ subtasks:
       check_cmd:
       - ls
       - /opt/check
-      sleep_time: 1
-      retries_total: 40
+      error_regexp: No such file
       volume_type: Directory
       volume_path: /tmp/
   runner:
@@ -36,8 +35,7 @@ subtasks:
       check_cmd:
       - ls
       - /opt/check
-      sleep_time: 1
-      retries_total: 40
+      error_regexp: No such file
       volume_type: Directory
       volume_path: /tmp/
   runner:

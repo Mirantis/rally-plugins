@@ -13,6 +13,7 @@
 # under the License.
 
 import os
+import re
 
 from kubernetes import client as k8s_config
 from kubernetes.client import api_client
@@ -39,7 +40,7 @@ def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
     """Util method for polling status until it won't be equals to `status`.
 
     :param name: resource name
-    :param status: status waiting for
+    :param status: status waiting for (string or tuple/list)
     :param read_method: method to poll
     :param resource_type: resource type for extended exceptions
     :param kwargs: additional kwargs for read_method
@@ -54,7 +55,10 @@ def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
         resp = read_method(name=name, **kwargs)
         resp_id = resp.metadata.uid
         current_status = resp.status.phase
-        if resp.status.phase != status:
+        if ((isinstance(status, (list, tuple)) and
+             resp.status.phase not in status) or
+            (isinstance(status, str) and
+             resp.status.phase != status)):
             i += 1
             commonutils.interruptable_sleep(sleep_time)
         else:
@@ -69,12 +73,14 @@ def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
                 timeout=(retries_total * sleep_time))
 
 
-def wait_for_ready_replicas(name, read_method, resource_type=None, **kwargs):
-    """Util method for polling status until it won't be equals to `status`.
+def wait_for_ready_replicas(name, read_method, resource_type=None,
+                            replicas=None, **kwargs):
+    """Util method for polling status until it won't be all replicas running.
 
     :param name: resource name
     :param read_method: method to poll
     :param resource_type: resource type for extended exceptions
+    :param replicas: expected replicas for extended exceptions
     :param kwargs: additional kwargs for read_method
     """
     sleep_time = CONF.kubernetes.status_poll_interval
@@ -86,22 +92,22 @@ def wait_for_ready_replicas(name, read_method, resource_type=None, **kwargs):
     while i < retries_total:
         resp = read_method(name=name, **kwargs)
         resp_id = resp.metadata.uid
-        current_status = resp.status.replicas
+        current_replicas = resp.status.replicas
         ready_replicas = resp.status.ready_replicas
-        if (current_status is None or
+        if (current_replicas is None or
                 ready_replicas is None or
-                current_status != ready_replicas):
+                current_replicas != ready_replicas):
             i += 1
             commonutils.interruptable_sleep(sleep_time)
         else:
             return
         if i == retries_total:
             raise exceptions.TimeoutException(
-                desired_status=ready_replicas,
+                desired_status="%s replicas running" % replicas,
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
-                resource_status=current_status,
+                resource_status="%s replicas running" % current_replicas,
                 timeout=(retries_total * sleep_time))
 
 
@@ -129,8 +135,10 @@ def wait_for_not_found(name, read_method, resource_type=None, **kwargs):
                 current_status = resp.status.active
             elif kwargs.get("daemonset"):
                 current_status = "%s pods" % resp.status.number_available
-            else:
+            elif hasattr(resp.status, "phase"):
                 current_status = resp.status.phase
+            else:
+                current_status = "Unknown"
         except rest.ApiException as ex:
             if ex.status == 404:
                 return
@@ -191,6 +199,7 @@ class Kubernetes(service.Service):
             if self._spec.get("tls_insecure", False):
                 config.verify_ssl = False
 
+        config.assert_hostname = False
         if self._k8s_client_version == 3:
             api = api_client.ApiClient(config=config)
         else:
@@ -324,27 +333,54 @@ class Kubernetes(service.Service):
         self.v1_client.create_namespaced_secret(namespace=namespace,
                                                 body=secret_manifest)
 
+    @atomic.action_timer("kubernetes.delete_secret")
+    def delete_secret(self, name, namespace):
+        """Delete secret.
+
+        :param name: secret name
+        :param namespace: namespace where secret should be created
+        """
+        self.v1_client.delete_namespaced_secret(
+            name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
+
     @atomic.action_timer("kubernetes.get_pod")
-    def get_pod(self, name, namespace):
+    def get_pod(self, name, namespace, **kwargs):
         """Get pod status.
 
         :param name: pod's name
         :param namespace: pod's namespace
         """
+        if kwargs.get("volume"):
+            e_list = self.v1_client.list_namespaced_event(namespace=namespace)
+            for item in e_list.items:
+                if item.metadata.name.startswith(name):
+                    if item.reason in ("CreateContainerError", "Failed"):
+                        raise exceptions.RallyException(
+                            message="Volume mount failed with %(reason)s and "
+                                    "message: %(msg)s" % {
+                                        "reason": item.reason,
+                                        "msg": item.message
+                                    })
         return self.v1_client.read_namespaced_pod(name, namespace=namespace)
 
     @atomic.action_timer("kubernetes.create_pod")
-    def create_pod(self, name, image, namespace, command=None, port=None,
-                   protocol=None, labels=None, status_wait=True):
+    def create_pod(self, image, namespace, command=None, volume=None,
+                   port=None, protocol=None, labels=None, name=None,
+                   status_wait=True):
         """Create pod and wait until status phase won't be Running.
 
-        :param name: pod's custom name
         :param image: pod's image
         :param namespace: chosen namespace to create pod into
-        :param command: array of strings which represents container command
+        :param volume: a dict, which contains `mount_path` and `volume` keys
+               with parts of pod's manifest as values
+        :param name: pod's custom name
         :param port: integer that represents container port
         :param protocol: container port's protocol
         :param labels: additional labels for pod
+        :param command: array of strings which represents container command
         :param status_wait: wait pod for Running status
         """
         name = name or self.generate_random_name()
@@ -355,6 +391,8 @@ class Kubernetes(service.Service):
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
+        if volume and volume.get("mount_path"):
+            container_spec["volumeMounts"] = volume["mount_path"]
         if port is not None and isinstance(port, int) and port > 0:
             container_spec["ports"] = [{"containerPort": port}]
             if protocol is not None:
@@ -366,7 +404,7 @@ class Kubernetes(service.Service):
             "metadata": {
                 "name": name,
                 "labels": {
-                    "role": self._spec.get("env_id") or name
+                    "role": name
                 }
             },
             "spec": {
@@ -377,9 +415,10 @@ class Kubernetes(service.Service):
 
         if labels:
             manifest["metadata"]["labels"].update(labels)
-
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["serviceAccountName"]
+        if volume and volume.get("volume"):
+            manifest["spec"]["volumes"] = volume["volume"]
 
         self.v1_client.create_namespaced_pod(body=manifest,
                                              namespace=namespace)
@@ -390,8 +429,34 @@ class Kubernetes(service.Service):
                 wait_for_status(name,
                                 status="Running",
                                 read_method=self.get_pod,
-                                namespace=namespace)
+                                namespace=namespace,
+                                resource_type="Pod",
+                                volume=volume)
         return name
+
+    @atomic.action_timer("kube.check_volume_pod_existence")
+    def check_volume_pod(self, name, namespace, check_cmd, error_regexp=None):
+        """Exec check_cmd in pod and get response.
+
+        :param name: pod's name
+        :param namespace: pod's namespace
+        :param check_cmd: check_cmd as array of strings
+        :param error_regexp: error regexp to raise exception
+        """
+        resp = stream(
+            self.v1_client.connect_get_namespaced_pod_exec,
+            name,
+            namespace=namespace,
+            command=check_cmd,
+            stderr=True, stdin=False,
+            stdout=True, tty=False
+        )
+
+        regexp = re.search(error_regexp, resp)
+        if "exec failed" in resp or (error_regexp and regexp is not None):
+            raise exceptions.RallyException(
+                message="Check pod's volume exec failed with error: %s" % resp
+            )
 
     @atomic.action_timer("kubernetes.delete_pod")
     def delete_pod(self, name, namespace, status_wait=True):
@@ -412,6 +477,7 @@ class Kubernetes(service.Service):
                                     "kubernetes.wait_pod_termination"):
                 wait_for_not_found(name,
                                    read_method=self.get_pod,
+                                   resource_type="Pod",
                                    namespace=namespace)
 
     @atomic.action_timer("kubernetes.get_service")
@@ -509,21 +575,26 @@ class Kubernetes(service.Service):
             body=k8s_config.V1DeleteOptions()
         )
 
-    @atomic.action_timer("kube.create_replication_controller")
-    def create_rc(self, name, replicas, image, namespace, sleep_time=5,
-                  retries_total=30, command=None):
+    @atomic.action_timer("kubernetes.get_replication_controller")
+    def get_rc(self, name, namespace, **kwargs):
+        return self.v1_client.read_namespaced_replication_controller(
+            name,
+            namespace=namespace
+        )
+
+    @atomic.action_timer("kubernetes.create_replication_controller")
+    def create_rc(self, replicas, image, namespace, command=None,
+                  status_wait=True):
         """Create RC and wait until it won't be running.
 
-        :param name: replication controller name
         :param replicas: number of replicas
         :param image: image for each replica
         :param namespace: replication controller namespace
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
         :param command: array of strings representing container command
-        :return: True if create finished successfully and False otherwise
+        :param status_wait: wait replication controller for actual running
+               replicas
         """
-
+        name = self.generate_random_name()
         app = self.generate_random_name()
 
         container_spec = {
@@ -562,60 +633,31 @@ class Kubernetes(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["template"]["spec"]["serviceAccountName"]
 
-        i = 0
-        create_started = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                self.v1_client.create_namespaced_replication_controller(
-                    body=manifest, namespace=namespace)
-                LOG.info("RC %s created" % name)
-            except Exception as ex:
-                LOG.error("RC create failed: %s" % ex.message)
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                create_started = True
-                break
+        self.v1_client.create_namespaced_replication_controller(
+            body=manifest,
+            namespace=namespace
+        )
 
-        if not create_started:
-            return False
+        if status_wait:
+            with atomic.ActionTimer(
+                    self,
+                    "kubernetes.wait_for_replication_controller_ready_replicas"
+            ):
+                wait_for_ready_replicas(
+                    name,
+                    read_method=self.get_rc,
+                    resource_type="Replication controller",
+                    replicas=replicas,
+                    namespace=namespace)
+        return name
 
-        i = 0
-        LOG.debug("Wait until RC pods won't be ready")
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                resp = self.v1_client.read_namespaced_replication_controller(
-                    name=name, namespace=namespace)
-            except Exception as ex:
-                LOG.warning("Unable to read RC status: %s" % ex.message)
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                if resp.status.ready_replicas != resp.status.replicas:
-                    i += 1
-                    commonutils.interruptable_sleep(sleep_time)
-                else:
-                    return True
-        return False
+    @atomic.action_timer("kubernetes.scale_replication_controller")
+    def scale_rc(self, name, namespace, replicas, status_wait=True):
+        """Scale replication controller with number of replicas.
 
-    def get_rc_replicas(self, name, namespace):
-        """Util method for get RC's current number of replicas."""
-        resp = self.v1_client.read_namespaced_replication_controller(
-            name=name, namespace=namespace)
-        return resp.spec.replicas
-
-    @atomic.action_timer("kube.scale_replication_controller")
-    def scale_rc(self, name, namespace, replicas, sleep_time=5,
-                 retries_total=30):
-        """Scale RC with number of replicas.
-
-        :param name: RC name
-        :param namespace: RC namespace
-        :param replicas: number of replicas RC scale to
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
+        :param name: replication controller name
+        :param namespace: replication controller namespace
+        :param replicas: number of replicas replication controller scale to
         :returns True if scale successful and False otherwise
         """
         self.v1_client.patch_namespaced_replication_controller(
@@ -623,813 +665,41 @@ class Kubernetes(service.Service):
             namespace=namespace,
             body={"spec": {"replicas": replicas}}
         )
-        i = 0
-        LOG.debug("Wait until RC pods won't be ready")
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                resp = self.v1_client.read_namespaced_replication_controller(
-                    name=name, namespace=namespace)
-            except Exception as ex:
-                LOG.warning("Unable to read RC status: %s" % ex.message)
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                if resp.status.ready_replicas != resp.status.replicas:
-                    i += 1
-                    commonutils.interruptable_sleep(sleep_time)
-                else:
-                    return True
-        return False
+        if status_wait:
+            with atomic.ActionTimer(
+                    self,
+                    "kubernetes.wait_for_replication_controller_ready_replicas"
+            ):
+                wait_for_ready_replicas(
+                    name,
+                    read_method=self.get_rc,
+                    resource_type="Replication controller",
+                    replicas=replicas,
+                    namespace=namespace)
 
-    @atomic.action_timer("kube.delete_replication_controller")
-    def delete_rc(self, name, namespace, sleep_time=5, retries_total=30):
-        """Delete RC from namespace and wait until it won't be terminated.
+    @atomic.action_timer("kubernetes.delete_replication_controller")
+    def delete_rc(self, name, namespace, status_wait=True):
+        """Delete replication controller and optionally wait for termination.
 
         :param name: replication controller name
-        :param namespace: namespace name of defined RC
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :returns True if delete successful and False otherwise
+        :param namespace: replication controller namespace
+        :param status_wait: wait replication controller for termination
         """
-        resp = self.v1_client.delete_namespaced_replication_controller(
-            name=name, namespace=namespace, body=k8s_config.V1DeleteOptions())
-        LOG.info("RC %(name)s delete started. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status
-        })
-
-        i = 0
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                self.v1_client.read_namespaced_replication_controller_status(
-                    name=name, namespace=namespace)
-            except Exception:
-                return True
-            else:
-                commonutils.interruptable_sleep(sleep_time)
-                i += 1
-        return False
-
-    @atomic.action_timer("kube.create_emptydir_volume_pod")
-    def create_emptydir_volume_pod(self, name, image, mount_path, namespace,
-                                   command=None):
-        """Create pod with emptyDir volume.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param namespace: pod's namespace
-        :param command: array of strings representing container command
-        """
-        container_spec = {
-            "name": name,
-            "image": image,
-            "volumeMounts": [
-                {
-                    "mountPath": mount_path,
-                    "name": "%s-volume" % name
-                }
-            ]
-        }
-        if command is not None and isinstance(command, (list, tuple)):
-            container_spec["command"] = list(command)
-
-        manifest = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "serviceAccountName": namespace,
-                "containers": [container_spec],
-                "volumes": [
-                    {
-                        "name": "%s-volume" % name,
-                        "emptyDir": {}
-                    }
-                ]
-            }
-        }
-
-        if not self._spec.get("serviceaccounts"):
-            del manifest["spec"]["serviceAccountName"]
-
-        resp = self.v1_client.create_namespaced_pod(body=manifest,
-                                                    namespace=namespace)
-        LOG.info("Pod %(name)s created. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status.phase
-        })
-
-    @atomic.action_timer("kube.create_emptydir_volume_pod_and_wait_running")
-    def create_emptydir_volume_pod_and_wait_running(self, name, image,
-                                                    mount_path,
-                                                    namespace, sleep_time,
-                                                    retries_total,
-                                                    command=None):
-        """Create pod with emptyDir volume, wait for running status.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param namespace: pod's namespace
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :param command: array of strings representing container command
-        :return: True if wait for running status successful and False otherwise
-        """
-        self.create_emptydir_volume_pod(
+        self.v1_client.delete_namespaced_replication_controller(
             name,
-            image=image,
-            mount_path=mount_path,
-            namespace=namespace,
-            command=command
-        )
-
-        i = 0
-        flag = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            resp = self.v1_client.read_namespaced_pod_status(
-                name,
-                namespace=namespace
-            )
-
-            if resp.status.phase == "Running":
-                return True
-            elif not flag:
-                e_list = self.v1_client.list_namespaced_event(
-                    namespace=namespace)
-                for item in e_list.items:
-                    if item.metadata.name.startswith(name):
-                        if item.reason == "CreateContainerError":
-                            LOG.error("Volume failed to mount to pod")
-                            return False
-                        elif (item.reason == "SuccessfulMountVolume" and
-                              ("%s-volume" % name) in item.message):
-                            LOG.info("Volume %s-volume successfully mount to "
-                                     "pod %s" % (name, name))
-                            flag = True
-            i += 1
-            commonutils.interruptable_sleep(sleep_time)
-        return False
-
-    @atomic.action_timer("kube.check_volume_pod_existence")
-    def check_volume_pod_existence(self, name, namespace, check_cmd):
-        """Exec check_cmd in pod and get response.
-
-        :param name: pod's name
-        :param namespace: pod's namespace
-        :param check_cmd: check_cmd as array of strings
-        """
-        resp = stream(
-            self.v1_client.connect_get_namespaced_pod_exec,
-            name,
-            namespace=namespace,
-            command=check_cmd,
-            stderr=True, stdin=False,
-            stdout=True, tty=False)
-
-        if "exec failed" in resp:
-            LOG.error("Check command failed with error: %s" % resp)
-            return False
-        LOG.info("Check command return next response: '%s'" % resp)
-        return True
-
-    @atomic.action_timer("kube.create_secret_volume_pod")
-    def create_secret_volume_pod(self, name, image, mount_path, namespace,
-                                 command=None):
-        """Create pod with secret volume.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param namespace: pod's namespace
-        :param command: array of strings representing container command
-        """
-        container_spec = {
-            "name": name,
-            "image": image,
-            "volumeMounts": [
-                {
-                    "mountPath": mount_path,
-                    "name": "%s-volume" % name
-                }
-            ]
-        }
-        if command is not None and isinstance(command, (list, tuple)):
-            container_spec["command"] = list(command)
-
-        manifest = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "serviceAccountName": namespace,
-                "containers": [container_spec],
-                "volumes": [
-                    {
-                        "name": "%s-volume" % name,
-                        "secret": {
-                            "secretName": name
-                        }
-                    }
-                ]
-            }
-        }
-
-        if not self._spec.get("serviceaccounts"):
-            del manifest["spec"]["serviceAccountName"]
-
-        resp = self.v1_client.create_namespaced_pod(body=manifest,
-                                                    namespace=namespace)
-        LOG.info("Pod %(name)s created. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status.phase
-        })
-
-    @atomic.action_timer("kube.create_secret_volume_pod_and_wait_running")
-    def create_secret_volume_pod_and_wait_running(self, name, image,
-                                                  mount_path,
-                                                  namespace, sleep_time,
-                                                  retries_total,
-                                                  command=None):
-        """Create pod with secret volume, wait for running status.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param namespace: pod's namespace
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :param command: array of strings representing container command
-        :return: True if wait for running status successful and False otherwise
-        """
-        self.create_secret_volume_pod(
-            name,
-            image=image,
-            mount_path=mount_path,
-            namespace=namespace,
-            command=command
-        )
-
-        i = 0
-        flag = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            resp = self.v1_client.read_namespaced_pod_status(
-                name,
-                namespace=namespace
-            )
-
-            if resp.status.phase == "Running":
-                return True
-            elif not flag:
-                e_list = self.v1_client.list_namespaced_event(
-                    namespace=namespace
-                )
-                for item in e_list.items:
-                    if item.metadata.name.startswith(name):
-                        if item.reason == "CreateContainerError":
-                            LOG.error("Volume failed to mount to pod")
-                            return False
-                        elif (item.reason == "SuccessfulMountVolume" and
-                              ("%s-volume" % name) in item.message):
-                            LOG.info("Volume %s-volume successfully mount to "
-                                     "pod %s" % (name, name))
-                            flag = True
-            i += 1
-            commonutils.interruptable_sleep(sleep_time)
-        return False
-
-    @atomic.action_timer("kube.create_hostpath_volume_pod")
-    def create_hostpath_volume_pod(self, name, image, mount_path, volume_type,
-                                   volume_path, namespace, command=None):
-        """Create pod with hostPath volume.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param volume_path: hostPath volume path in host
-        :param volume_type: hostPath type according to Kubernetes docs
-        :param namespace: pod's namespace
-        :param command: array of strings representing container command
-        """
-        container_spec = {
-            "name": name,
-            "image": image,
-            "volumeMounts": [
-                {
-                    "mountPath": mount_path,
-                    "name": "%s-volume" % name
-                }
-            ]
-        }
-        if command is not None and isinstance(command, (list, tuple)):
-            container_spec["command"] = list(command)
-
-        manifest = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "serviceAccountName": namespace,
-                "containers": [container_spec],
-                "volumes": [
-                    {
-                        "name": "%s-volume" % name,
-                        "hostPath": {
-                            "path": volume_path,
-                            "type": volume_type
-                        }
-                    }
-                ]
-            }
-        }
-
-        if not self._spec.get("serviceaccounts"):
-            del manifest["spec"]["serviceAccountName"]
-
-        resp = self.v1_client.create_namespaced_pod(body=manifest,
-                                                    namespace=namespace)
-        LOG.info("Pod %(name)s created. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status.phase
-        })
-
-    @atomic.action_timer("kube.create_hostpath_volume_pod_and_wait_running")
-    def create_hostpath_volume_pod_and_wait_running(self, name, image,
-                                                    mount_path,
-                                                    volume_path, volume_type,
-                                                    namespace, sleep_time,
-                                                    retries_total,
-                                                    command=None):
-        """Create pod with secret volume, wait for running status.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param volume_path: hostPath volume path in host
-        :param volume_type: hostPath type according to Kubernetes docs
-        :param namespace: pod's namespace
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :param command: array of strings representing container command
-        :return: True if wait for running status successful and False otherwise
-        """
-        self.create_hostpath_volume_pod(
-            name,
-            image=image,
-            mount_path=mount_path,
-            volume_type=volume_type,
-            volume_path=volume_path,
-            namespace=namespace,
-            command=command
-        )
-
-        i = 0
-        flag = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            resp = self.v1_client.read_namespaced_pod_status(
-                name,
-                namespace=namespace
-            )
-
-            if resp.status.phase == "Running":
-                return True
-            elif not flag:
-                e_list = self.v1_client.list_namespaced_event(
-                    namespace=namespace
-                )
-                for item in e_list.items:
-                    if item.metadata.name.startswith(name):
-                        if item.reason == "CreateContainerError":
-                            LOG.error("Volume failed to mount to pod")
-                            return False
-                        elif (item.reason == "SuccessfulMountVolume" and
-                              ("%s-volume" % name) in item.message):
-                            LOG.info("Volume %s-volume successfully mount to "
-                                     "pod %s" % (name, name))
-                            flag = True
-            i += 1
-            commonutils.interruptable_sleep(sleep_time)
-        return False
-
-    @atomic.action_timer("kube.create_local_storageclass")
-    def create_local_storageclass(self, name):
-        manifest = {
-            "kind": "StorageClass",
-            "apiVersion": "storage.k8s.io/v1",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "provisioner": "kubernetes.io/no-provisioner",
-            "volumeBindingMode": "WaitForFirstConsumer"
-        }
-
-        self.v1_storage.create_storage_class(body=manifest)
-
-        LOG.info("Local storage class %s created." % name)
-
-    @atomic.action_timer("kube.delete_local_storageclass")
-    def delete_local_storageclass(self, name):
-        resp = self.v1_storage.delete_storage_class(
-            name=name,
-            body=k8s_config.V1DeleteOptions()
-        )
-        LOG.info("Local storage class %s delete started. "
-                 "Status: %s" % (name, resp.status))
-
-    @atomic.action_timer("kube.create_local_persistent_volume")
-    def create_local_pv(self, name, storage_class, size, volume_mode,
-                        local_path, access_modes, node_affinity, sleep_time,
-                        retries_total):
-        manifest = {
-            "kind": "PersistentVolume",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "capacity": {
-                    "storage": size
-                },
-                "volumeMode": volume_mode,
-                "accessModes": access_modes,
-                "persistentVolumeReclaimPolicy": "Retain",
-                "storageClassName": storage_class,
-                "local": {
-                    "path": local_path
-                },
-                "nodeAffinity": node_affinity
-            }
-        }
-
-        resp = self.v1_client.create_persistent_volume(body=manifest)
-
-        LOG.info("Local persistent volume %s create started. "
-                 "Status: %s" % (name, resp.status))
-
-        i = 0
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            resp = self.v1_client.read_persistent_volume(name)
-            if resp.status.phase not in ("Available", "Released"):
-                i += 1
-                commonutils.interruptable_sleep(sleep_time)
-            else:
-                return True
-        return False
-
-    @atomic.action_timer("kube.get_local_persistent_volume")
-    def get_local_pv(self, name):
-        return self.v1_client.read_persistent_volume(name)
-
-    @atomic.action_timer("kube.delete_local_persistent_volume")
-    def delete_local_pv(self, name, sleep_time, retries_total):
-        resp = self.v1_client.delete_persistent_volume(
-            name=name,
-            body=k8s_config.V1DeleteOptions()
-        )
-
-        LOG.info("Local persistent volume %s delete started. "
-                 "Status: %s" % (name, resp.status))
-
-        i = 0
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                self.v1_client.read_persistent_volume(name)
-            except Exception:
-                return True
-            else:
-                commonutils.interruptable_sleep(sleep_time)
-                i += 1
-        return False
-
-    @atomic.action_timer("kube.create_local_persistent_volume_claim")
-    def create_local_pvc(self, name, storage_class, access_modes, size,
-                         namespace):
-        manifest = {
-            "kind": "PersistentVolumeClaim",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "resources": {
-                    "requests": {
-                      "storage": size
-                    }
-                },
-                "accessModes": access_modes,
-                "storageClassName": storage_class
-            }
-        }
-
-        resp = self.v1_client.create_namespaced_persistent_volume_claim(
-            namespace=namespace,
-            body=manifest
-        )
-
-        LOG.info("Local persistent volume claim %s create started. "
-                 "Status: %s" % (name, resp.status))
-
-    @atomic.action_timer("kube.get_local_pvc")
-    def get_local_pvc(self, name, namespace):
-        return self.v1_client.read_namespaced_persistent_volume_claim(
-            name, namespace=namespace)
-
-    @atomic.action_timer("kube.delete_local_pvc")
-    def delete_local_pvc(self, name, namespace, sleep_time, retries_total):
-        resp = self.v1_client.delete_namespaced_persistent_volume_claim(
-            name=name,
             namespace=namespace,
             body=k8s_config.V1DeleteOptions()
         )
-
-        LOG.info("Local persistent volume claim %s delete started. "
-                 "Status: %s" % (name, resp.status))
-
-        i = 0
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            try:
-                self.v1_client.read_namespaced_persistent_volume_claim(
+        if status_wait:
+            with atomic.ActionTimer(
+                    self,
+                    "kubernetes.wait_for_replication_controller_termination"):
+                wait_for_not_found(
                     name,
-                    namespace=namespace
-                )
-            except Exception:
-                return True
-            else:
-                commonutils.interruptable_sleep(sleep_time)
-                i += 1
-        return False
-
-    @atomic.action_timer("kube.create_local_pvc_pod")
-    def create_local_pvc_pod(self, name, image, mount_path, namespace,
-                             command=None):
-        """Create pod with emptyDir volume.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param namespace: pod's namespace
-        :param command: array of strings representing container command
-        """
-        container_spec = {
-            "name": name,
-            "image": image,
-            "volumeMounts": [
-                {
-                    "mountPath": mount_path,
-                    "name": "%s-volume" % name
-                }
-            ]
-        }
-        if command is not None and isinstance(command, (list, tuple)):
-            container_spec["command"] = list(command)
-
-        manifest = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "serviceAccountName": namespace,
-                "containers": [container_spec],
-                "volumes": [
-                    {
-                        "name": "%s-volume" % name,
-                        "persistentVolumeClaim": {
-                            "claimName": name
-                        }
-                    }
-                ]
-            }
-        }
-
-        if not self._spec.get("serviceaccounts"):
-            del manifest["spec"]["serviceAccountName"]
-
-        resp = self.v1_client.create_namespaced_pod(body=manifest,
-                                                    namespace=namespace)
-        LOG.info("Pod %(name)s created. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status.phase
-        })
-
-    @atomic.action_timer("kube.create_local_pvc_pod_and_wait_running")
-    def create_local_pvc_pod_and_wait_running(self, name, namespace, image,
-                                              mount_path, sleep_time,
-                                              retries_total, command=None):
-        self.create_local_pvc_pod(
-            name,
-            image=image,
-            namespace=namespace,
-            mount_path=mount_path,
-            command=command
-        )
-
-        i = 0
-        flag = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            resp = self.v1_client.read_namespaced_pod_status(
-                name,
-                namespace=namespace
-            )
-
-            if resp.status.phase == "Running":
-                return True
-            elif not flag:
-                e_list = self.v1_client.list_namespaced_event(
-                    namespace=namespace
-                )
-                for item in e_list.items:
-                    if item.metadata.name.startswith(name):
-                        if item.reason == "CreateContainerError":
-                            LOG.error("Volume failed to mount to pod")
-                            return False
-                        elif (item.reason == "SuccessfulMountVolume" and
-                              ("%s-volume" % name) in item.message):
-                            LOG.info("Volume %s-volume successfully mount to "
-                                     "pod %s" % (name, name))
-                            flag = True
-            i += 1
-            commonutils.interruptable_sleep(sleep_time)
-        return False
-
-    @atomic.action_timer("kube.create_configmap")
-    def create_configmap(self, name, namespace, data):
-        manifest = {
-            "apiVersion": "v1",
-            "kind": "ConfigMap",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "data": data
-        }
-        self.v1_client.create_namespaced_config_map(namespace=namespace,
-                                                    body=manifest)
-
-    @atomic.action_timer("kube.create_configmap_volume_pod")
-    def create_configmap_volume_pod(self, name, image, mount_path, namespace,
-                                    command=None, subpath=None):
-        """Create pod with hostPath volume.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param configmap: configMap name as a pod volume
-        :param subpath: subPath from configMap data to mount in pod
-        :param mount_path: pod's mount path of volume
-        :param namespace: pod's namespace
-        :param command: array of strings representing container command
-        """
-        container_spec = {
-            "name": name,
-            "image": image,
-            "volumeMounts": [
-                {
-                    "mountPath": mount_path,
-                    "name": "%s-volume" % name
-                }
-            ]
-        }
-        if command is not None and isinstance(command, (list, tuple)):
-            container_spec["command"] = list(command)
-        if subpath:
-            container_spec["volumeMounts"][0]["subPath"] = subpath
-
-        manifest = {
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "metadata": {
-                "name": name,
-                "labels": {
-                    "role": "rally-test"
-                }
-            },
-            "spec": {
-                "serviceAccountName": namespace,
-                "containers": [container_spec],
-                "volumes": [
-                    {
-                        "name": "%s-volume" % name,
-                        "configMap": {
-                            "name": name
-                        }
-                    }
-                ]
-            }
-        }
-
-        if not self._spec.get("serviceaccounts"):
-            del manifest["spec"]["serviceAccountName"]
-
-        resp = self.v1_client.create_namespaced_pod(body=manifest,
-                                                    namespace=namespace)
-        LOG.info("Pod %(name)s created. Status: %(status)s" % {
-            "name": name,
-            "status": resp.status.phase
-        })
-
-    @atomic.action_timer("kube.create_configmap_volume_pod_and_wait_running")
-    def create_configmap_volume_pod_and_wait_running(self, name, image,
-                                                     mount_path,
-                                                     namespace, sleep_time,
-                                                     retries_total,
-                                                     command=None,
-                                                     subpath=None):
-        """Create pod with secret volume, wait for running status.
-
-        :param name: pod's name
-        :param image: pod's image
-        :param mount_path: pod's mount path of volume
-        :param subpath: subPath from configMap data to mount in pod
-        :param namespace: pod's namespace
-        :param sleep_time: sleep time between each two retries
-        :param retries_total: total number of retries
-        :param command: array of strings representing container command
-        :return: True if wait for running status successful and False otherwise
-        """
-        self.create_configmap_volume_pod(
-            name,
-            image=image,
-            mount_path=mount_path,
-            subpath=subpath,
-            namespace=namespace,
-            command=command
-        )
-
-        i = 0
-        flag = False
-        while i < retries_total:
-            LOG.debug("Attempt number %s" % i)
-            resp = self.v1_client.read_namespaced_pod_status(
-                name,
-                namespace=namespace
-            )
-
-            if resp.status.phase == "Running":
-                return True
-            elif not flag:
-                e_list = self.v1_client.list_namespaced_event(
-                    namespace=namespace
-                )
-                for item in e_list.items:
-                    if item.metadata.name.startswith(name):
-                        if item.reason == "CreateContainerError":
-                            LOG.error("Volume failed to mount to pod")
-                            return False
-                        elif (item.reason == "SuccessfulMountVolume" and
-                              ("%s-volume" % name) in item.message):
-                            LOG.info("Volume %s-volume successfully mount to "
-                                     "pod %s" % (name, name))
-                            flag = True
-            i += 1
-            commonutils.interruptable_sleep(sleep_time)
-        return False
-
-    @atomic.action_timer("kube.delete_configmap")
-    def delete_configmap(self, name, namespace):
-        self.v1_client.delete_namespaced_config_map(
-            name, namespace=namespace,
-            body=k8s_config.V1DeleteOptions()
-        )
+                    read_method=self.get_rc,
+                    resource_type="Replication controller",
+                    replicas=True,
+                    namespace=namespace)
 
     @atomic.action_timer("kubernetes.get_replicaset")
     def get_replicaset(self, name, namespace, **kwargs):
@@ -2070,3 +1340,196 @@ class Kubernetes(service.Service):
                                    resource_type="DaemonSet",
                                    namespace=namespace,
                                    daemonset=True)
+
+    @atomic.action_timer("kubernetes.create_local_storageclass")
+    def create_local_storageclass(self):
+        name = self.generate_random_name()
+
+        manifest = {
+            "kind": "StorageClass",
+            "apiVersion": "storage.k8s.io/v1",
+            "metadata": {
+                "name": name
+            },
+            "provisioner": "kubernetes.io/no-provisioner",
+            "volumeBindingMode": "WaitForFirstConsumer"
+        }
+
+        self.v1_storage.create_storage_class(body=manifest)
+        return name
+
+    @atomic.action_timer("kubernetes.delete_local_storageclass")
+    def delete_local_storageclass(self, name):
+        self.v1_storage.delete_storage_class(
+            name,
+            body=k8s_config.V1DeleteOptions()
+        )
+
+    @atomic.action_timer("kubernetes.create_local_persistent_volume")
+    def create_local_pv(self, name, storage_class, size, volume_mode,
+                        local_path, access_modes, node_affinity,
+                        status_wait=True):
+        """Create local persistent volume and optionally wait for readiness.
+        :param name: local PV name
+        :param storage_class: storageClass created for local PV
+        :param size: PV size (see kubernetes docs)
+        :param volume_mode: PV volume mode (see kubernetes docs)
+        :param local_path: local path on host to bind
+        :param access_modes: array of strings - access modes (see kubernetes
+               docs)
+        :param node_affinity: map represents PV nodeAffinity (see kubernetes
+               docs)
+        :param status_wait: wait for status if True
+        :return: name
+        """
+        name = name or self.generate_random_name()
+
+        manifest = {
+            "kind": "PersistentVolume",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": name
+            },
+            "spec": {
+                "capacity": {
+                    "storage": size
+                },
+                "volumeMode": volume_mode,
+                "accessModes": access_modes,
+                "persistentVolumeReclaimPolicy": "Retain",
+                "storageClassName": storage_class,
+                "local": {
+                    "path": local_path
+                },
+                "nodeAffinity": node_affinity
+            }
+        }
+
+        self.v1_client.create_persistent_volume(body=manifest)
+
+        if status_wait:
+            with atomic.ActionTimer(
+                    self,
+                    "kubernetes.wait_for_local_persistent_volume_become_ready"
+            ):
+                wait_for_status(name,
+                                status=("Available", "Released"),
+                                read_method=self.get_local_pv,
+                                resource_type="Persistent Volume")
+        return name
+
+    @atomic.action_timer("kubernetes.get_local_persistent_volume")
+    def get_local_pv(self, name):
+        return self.v1_client.read_persistent_volume(name)
+
+    @atomic.action_timer("kubernetes.delete_local_persistent_volume")
+    def delete_local_pv(self, name, status_wait=True):
+        """Delete local PV and optionally wait for not found it.
+        :param name: local PV name
+        :param status_wait: wait for termination if True
+        """
+        self.v1_client.delete_persistent_volume(
+            name=name,
+            body=k8s_config.V1DeleteOptions()
+        )
+
+        if status_wait:
+            with atomic.ActionTimer(
+                self,
+                "kubernetes.wait_for_local_persistent_volume_termination"
+            ):
+                wait_for_not_found(name,
+                                   read_method=self.get_local_pv,
+                                   resource_type="Persistent Volume")
+
+    @atomic.action_timer("kubernetes.create_local_persistent_volume_claim")
+    def create_local_pvc(self, name, namespace, storage_class, access_modes,
+                         size):
+        """Create local persistent volume claim.
+        :param name: local PVC name
+        :param namespace: local PVC namespace
+        :param storage_class: storageClass created for local PV
+        :param access_modes: array of strings - access modes (see kubernetes
+               docs)
+        :param size: PV size (see kubernetes docs)
+        :return:
+        """
+        manifest = {
+            "kind": "PersistentVolumeClaim",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": name
+            },
+            "spec": {
+                "resources": {
+                    "requests": {
+                        "storage": size
+                    }
+                },
+                "accessModes": access_modes,
+                "storageClassName": storage_class
+            }
+        }
+
+        self.v1_client.create_namespaced_persistent_volume_claim(
+            namespace=namespace,
+            body=manifest
+        )
+
+    @atomic.action_timer("kubernetes.get_local_pvc")
+    def get_local_pvc(self, name, namespace):
+        return self.v1_client.read_namespaced_persistent_volume_claim(
+            name, namespace=namespace)
+
+    @atomic.action_timer("kubernetes.delete_local_pvc")
+    def delete_local_pvc(self, name, namespace, status_wait=True):
+        """Delete local PVC and optionally wait for termination.
+        :param name: local PVC name
+        :param namespace: local PVC namespace
+        :param status_wait: wait for termination if True
+        """
+        self.v1_client.delete_namespaced_persistent_volume_claim(
+            name=name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )
+
+        if status_wait:
+            with atomic.ActionTimer(
+                self,
+                "kubernetes.wait_for_local_persistent_volume_claim_termination"
+            ):
+                wait_for_not_found(name,
+                                   namespace=namespace,
+                                   read_method=self.get_local_pvc,
+                                   resource_type="Persistent Volume Claim")
+
+    @atomic.action_timer("kubernetes.create_configmap")
+    def create_configmap(self, name, namespace, data):
+        """Create configMap resource.
+        :param name: configMap resource name
+        :param namespace: configMap namespace
+        :param data: configMap data
+        """
+        manifest = {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": name
+            },
+            "data": data
+        }
+        self.v1_client.create_namespaced_config_map(namespace=namespace,
+                                                    body=manifest)
+
+    @atomic.action_timer("kubernetes.delete_configmap")
+    def delete_configmap(self, name, namespace):
+        """Delete configMap resource.
+        :param name: configMap name
+        :param namespace: configMap namespace
+        """
+        self.v1_client.delete_namespaced_config_map(
+            name,
+            namespace=namespace,
+            body=k8s_config.V1DeleteOptions()
+        )

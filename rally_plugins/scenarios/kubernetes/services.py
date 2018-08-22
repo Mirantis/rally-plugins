@@ -30,14 +30,12 @@ CONF = cfg.CONF
 )
 class PodWithClusterIPSvc(common_scenario.BaseKubernetesScenario):
 
-    def run(self, image, port, protocol, name=None, command=None,
-            status_wait=True):
+    def run(self, image, port, protocol, command=None, status_wait=True):
         """Create pod and clusterIP svc, check with curl job, delete then.
 
         :param image: pod's image
         :param port: pod's container port and svc port integer
         :param protocol: pod's container port and svc port protocol
-        :param name: pod's custom name
         :param command: pod's array of strings representing command
         :param status_wait: wait for pod status if True
         """
@@ -45,8 +43,7 @@ class PodWithClusterIPSvc(common_scenario.BaseKubernetesScenario):
         labels = {"app": self.generate_random_name()}
 
         name = self.client.create_pod(
-            name,
-            image=image,
+            image,
             namespace=namespace,
             command=command,
             port=port,
@@ -103,8 +100,7 @@ class PodWithClusterIPSvc(common_scenario.BaseKubernetesScenario):
 )
 class PodWithClusterIPSvcWithEndpoints(common_scenario.BaseKubernetesScenario):
 
-    def run(self, image, port, protocol, name=None, command=None,
-            status_wait=True):
+    def run(self, image, port, protocol, command=None, status_wait=True):
         """Create pod and clusterIP svc with custom endpoints.
 
         Create pod and clusterIP svc with custom endpoints, check it with curl
@@ -113,15 +109,13 @@ class PodWithClusterIPSvcWithEndpoints(common_scenario.BaseKubernetesScenario):
         :param image: pod's image
         :param port: pod's container port and svc port integer
         :param protocol: pod's container port and svc port protocol
-        :param name: pod's custom name
         :param command: pod's array of strings representing command
         :param status_wait: wait for pod status if True
         """
         namespace = self.choose_namespace()
 
         name = self.client.create_pod(
-            name,
-            image=image,
+            image,
             namespace=namespace,
             command=command,
             port=port,
@@ -175,8 +169,7 @@ class PodWithClusterIPSvcWithEndpoints(common_scenario.BaseKubernetesScenario):
 )
 class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
 
-    def run(self, image, port, protocol, name=None, command=None,
-            status_wait=True):
+    def run(self, image, port, protocol, command=None, status_wait=True):
         """Create pod and nodePort svc, request pod by port and delete then.
 
         :param image: pod's image
@@ -190,8 +183,7 @@ class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
         labels = {"app": self.generate_random_name()}
 
         name = self.client.create_pod(
-            name,
-            image=image,
+            image,
             namespace=namespace,
             command=command,
             port=port,

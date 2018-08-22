@@ -1,10 +1,10 @@
 ---
 version: 2
-title: Create, check and delete pod with secret volume
+title: Create, read, check and delete pod with emptyDir volume
 subtasks:
-- title: Run a single workload with create/check/delete pod with secret volume
+- title: Run a single workload with create/read/check/delete pod with emptyDir volume
   scenario:
-    Kubernetes.create_and_delete_pod_with_secret_volume:
+    Kubernetes.create_and_delete_pod_with_emptydir_volume:
       image: busybox
       command:
       - sleep
@@ -13,8 +13,7 @@ subtasks:
       check_cmd:
       - ls
       - /opt/check
-      sleep_time: 1
-      retries_total: 40
+      error_regexp: No such file
   runner:
     constant:
       concurrency: 2
@@ -23,9 +22,9 @@ subtasks:
     namespaces:
       count: 3
       with_serviceaccount: true
-- title: Run create/check/delete pod with secret volume with rps runner
+- title: Run create/read/check/delete pod with emptyDir volume with rps runner
   scenario:
-    Kubernetes.create_and_delete_pod_with_secret_volume:
+    Kubernetes.create_and_delete_pod_with_emptydir_volume:
       image: busybox
       command:
       - sleep
@@ -34,8 +33,7 @@ subtasks:
       check_cmd:
       - ls
       - /opt/check
-      sleep_time: 1
-      retries_total: 40
+      error_regexp: No such file
   runner:
     rps:
       rps: 2
