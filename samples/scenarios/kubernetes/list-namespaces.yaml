@@ -15,4 +15,4 @@ subtasks:
   runner:
     rps:
       rps: 2
-      times: 10g
+      times: 10
