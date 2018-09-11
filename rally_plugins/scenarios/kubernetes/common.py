@@ -44,7 +44,8 @@ class BaseKubernetesScenario(scenario.Scenario):
         spec = {
             "namespaces": self.context["kubernetes"].get("namespaces"),
             "serviceaccounts": self.context["kubernetes"].get(
-                "serviceaccounts")
+                "serviceaccounts"),
+            "assert_hostname": False
         }
         if "env" in self.context:
             spec.update(self.context["env"]["platforms"]["kubernetes"])
