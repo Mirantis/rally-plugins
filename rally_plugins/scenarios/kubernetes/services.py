@@ -209,9 +209,33 @@ class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
 
         with atomic.ActionTimer(self, "kubernetes.request_node_port_service"):
             server = self.context["env"]["platforms"]["kubernetes"]["server"]
-            requests.get("http" +
-                         server[server.index(":"):server.rindex(":") + 1] +
-                         str(node_port))
+
+            sleep_time = CONF.kubernetes.status_poll_interval
+            retries_total = CONF.kubernetes.status_total_retries
+
+            i = 0
+            url = ("http" +
+                   server[server.index(":"):server.rindex(":") + 1] +
+                   str(node_port) + "/")
+            while i < retries_total:
+                try:
+                    kwargs = {}
+                    if request_timeout:
+                        kwargs["timeout"] = request_timeout
+                    requests.get(url, **kwargs)
+                except (requests.ConnectionError, requests.ReadTimeout) as ex:
+                    if i < retries_total:
+                        i += 1
+                        commonutils.interruptable_sleep(sleep_time)
+                    else:
+                        raise exceptions.RallyException(
+                            message="Unable to get response "
+                                    "from %(url)s: %(ex)s" % {
+                                        "url": url,
+                                        "ex": str(ex)
+                                    })
+                else:
+                    break
 
         self.client.delete_service(name, namespace=namespace)
         self.client.delete_pod(
