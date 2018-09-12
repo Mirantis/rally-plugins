@@ -16,6 +16,7 @@ import requests
 
 from rally.common import cfg
 from rally.common import utils as commonutils
+from rally import exceptions
 from rally.task import atomic
 from rally.task import scenario
 
@@ -169,13 +170,14 @@ class PodWithClusterIPSvcWithEndpoints(common_scenario.BaseKubernetesScenario):
 )
 class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
 
-    def run(self, image, port, protocol, command=None, status_wait=True):
+    def run(self, image, port, protocol, request_timeout=None,
+            command=None, status_wait=True):
         """Create pod and nodePort svc, request pod by port and delete then.
 
         :param image: pod's image
         :param port: pod's container port and svc port integer
         :param protocol: pod's container port and svc port protocol
-        :param name: pod's custom name
+        :param request_timeout: GET request timeout for check nodePort svc IP
         :param command: pod's array of strings representing command
         :param status_wait: wait for pod status if True
         """
