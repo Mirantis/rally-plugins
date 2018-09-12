@@ -216,9 +216,11 @@ class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
             retries_total = CONF.kubernetes.status_total_retries
 
             i = 0
-            url = ("http" +
-                   server[server.index(":"):server.rindex(":") + 1] +
-                   str(node_port) + "/")
+            if server.startswith("http"):
+                ip = server[server.index(":"):server.rindex(":") + 1]
+            else:
+                ip = server[:server.index(":")]
+            url = ("http" + ip + str(node_port) + "/")
             while i < retries_total:
                 try:
                     kwargs = {}
