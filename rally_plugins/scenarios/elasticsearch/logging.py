@@ -33,13 +33,6 @@ LOG = logging.getLogger(__name__)
 """Scenario for Elasticsearch logging system."""
 
 
-@types.convert(image={"type": "glance_image"},
-               flavor={"type": "nova_flavor"})
-@validation.add("required_services", services=[consts.Service.NOVA])
-@validation.add("required_platform", platform="openstack", admin=True)
-@scenario.configure(context={"cleanup@openstack": ["nova"]},
-                    name="ElasticsearchLogging.log_instance",
-                    platform="openstack")
 class ElasticsearchLogInstanceName(nova_utils.NovaScenario):
     """Test logging instance in conjunction with Elasticsearch system.
 
