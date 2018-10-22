@@ -15,6 +15,18 @@
         elasticsearch_port: {{ elasticsearch_port }}
         sleep_time: {{ sleep_time }}
         retries_total: {{ retries_total }}
+        additional_query:
+          must_not:
+          - match_phrase:
+              Payload: GET
+          - match_phrase:
+              http_method: GET
+          should:
+          - range:
+              Timestamp:
+                gte: now-2m
+                lte: now
+          minimum_should_match: 1
       runner:
         type: "constant"
         times: {{ compute }}

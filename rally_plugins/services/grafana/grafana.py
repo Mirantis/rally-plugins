@@ -24,39 +24,21 @@ LOG = logging.getLogger(__name__)
 
 class GrafanaService(service.Service):
 
-    @atomic.action_timer("grafana.push_metric")
-    def push_metric(self, seed, monitor_vip, pushgateway_port, job_name):
-        """Push metric by GET request using pushgateway.
+    def __init__(self, spec, name_generator=None, atomic_inst=None):
+        """Initialization of Grafana service.
 
-        :param seed: random name for metric to push
-        :param monitor_vip: monitoring system IP to push metric
-        :param pushgateway_port: Pushgateway port to use for pushing metric
-        :param job_name: job name to push metric in it
+        :param spec: param contains monitoring system info: IPs, ports, creds
         """
-        push_url = "http://%(ip)s:%(port)s/metrics/job/%(job)s" % {
-            "ip": monitor_vip,
-            "port": pushgateway_port,
-            "job": job_name
-        }
-        resp = requests.post(push_url,
-                             headers={"Content-type": "text/xml"},
-                             data="%s 12345\n" % seed)
-        if resp.ok:
-            LOG.info("Metric %s pushed" % seed)
-        else:
-            LOG.error("Error during push metric %s" % seed)
-        return resp.ok
+        super(GrafanaService, self).__init__(None,
+                                             name_generator=name_generator,
+                                             atomic_inst=atomic_inst)
+        self._spec = spec
 
     @atomic.action_timer("grafana.check_metric")
-    def check_metric(self, seed, monitor_vip, grafana, datasource_id,
-                     sleep_time, retries_total):
+    def check_metric(self, seed, sleep_time, retries_total):
         """Check metric with seed name in Grafana datasource.
 
         :param seed: random metric name
-        :param monitor_vip: monitoring system IP to push metric
-        :param grafana: Grafana dict with creds and port to use for checking
-               metric. Format: {user: admin, password: pass, port: 9902}
-        :param datasource_id: metrics storage datasource ID in Grafana
         :param sleep_time: sleep time between checking metrics in seconds
         :param retries_total: total number of retries to check metric in
                               Grafana
@@ -64,9 +46,9 @@ class GrafanaService(service.Service):
         """
         check_url = ("http://%(vip)s:%(port)s/api/datasources/proxy/:"
                      "%(datasource)s/api/v1/query?query=%(seed)s" % {
-                         "vip": monitor_vip,
-                         "port": grafana["port"],
-                         "datasource": datasource_id,
+                         "vip": self._spec["monitor_vip"],
+                         "port": self._spec["grafana"]["port"],
+                         "datasource": self._spec["datasource_id"],
                          "seed": seed
                      })
         i = 0
@@ -74,7 +56,8 @@ class GrafanaService(service.Service):
         while i < retries_total:
             LOG.debug("Attempt number %s" % (i + 1))
             resp = requests.get(check_url,
-                                auth=(grafana["user"], grafana["password"]))
+                                auth=(self._spec["grafana"]["user"],
+                                      self._spec["grafana"]["password"]))
             result = resp.json()
             LOG.debug("Grafana response code: %s" % resp.status_code)
             if len(result["data"]["result"]) < 1 and i + 1 >= retries_total:
@@ -86,3 +69,23 @@ class GrafanaService(service.Service):
             else:
                 LOG.debug("Metric instance found in Grafana")
                 return True
+
+    @atomic.action_timer("grafana.push_metric")
+    def push_metric(self, seed):
+        """Push metric by GET request using pushgateway.
+
+        :param seed: random name for metric to push
+        """
+        push_url = "http://%(ip)s:%(port)s/metrics/job/%(job)s" % {
+            "ip": self._spec["monitor_vip"],
+            "port": self._spec["pushgateway_port"],
+            "job": self._spec["job_name"]
+        }
+        resp = requests.post(push_url,
+                             headers={"Content-type": "text/xml"},
+                             data="%s 12345\n" % seed)
+        if resp.ok:
+            LOG.info("Metric %s pushed" % seed)
+        else:
+            LOG.error("Error during push metric %s" % seed)
+        return resp.ok

@@ -86,7 +86,7 @@ class MapKeysParameterValidator(validation.Validator):
                       % self.param_name)
 
 
-if rally_openstack.__rally_version__ < (1, 2):
+if rally_openstack.__rally_version__ < (1, 1):
     @validation.configure(name="map_keys")
     class MapKeysParameterValidatorConfigured(MapKeysParameterValidator):
         pass
