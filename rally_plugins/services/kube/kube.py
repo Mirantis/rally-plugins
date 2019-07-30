@@ -199,8 +199,8 @@ class Kubernetes(service.Service):
             if self._spec.get("tls_insecure", False):
                 config.verify_ssl = False
 
-        if self._spec.get("assert_hostname"):
-            config.assert_hostname = self._spec.get("assert_hostname")
+        config.assert_hostname = False
+
         if self._k8s_client_version == 3:
             api = api_client.ApiClient(config=config)
         else:
