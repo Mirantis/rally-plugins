@@ -36,33 +36,28 @@ class CreateAndDeletePod(common_scenario.BaseKubernetesScenario):
         start, finish = None, None
         stat_dict = collections.OrderedDict()
         stat_dict.update({
-            "kubernetes.initialized_pod": {},
             "kubernetes.scheduled_pod": {},
-            "kubernetes.created_pod": {}
+            "kubernetes.ready_pod": {},
+            "kubernetes.initialized_pod": {},
+            "kubernetes.pod_create": {}
         })
         for d in conditions:
-            if d.type == "Initialized":
-                start = init_time = to_time(d.last_transition_time.timetuple())
-                stat_dict["kubernetes.initialized_pod"].update({
-                    "started_at": init_time
-                })
-            elif d.type == "PodScheduled":
-                scheduled = to_time(d.last_transition_time.timetuple())
-                stat_dict["kubernetes.scheduled_pod"].update({
-                    "started_at": scheduled
-                })
-                stat_dict["kubernetes.initialized_pod"].update({
-                    "finished_at": scheduled
-                })
+            if d.type == "PodScheduled":
+                start = scheduled = to_time(d.last_transition_time.timetuple())
+                stat_dict["kubernetes.scheduled_pod"].update({"started_at": scheduled})
+            elif d.type == "Initialized":
+                init_time = to_time(d.last_transition_time.timetuple())
+                stat_dict["kubernetes.scheduled_pod"].update({"finished_at": init_time})
+                stat_dict["kubernetes.initialized_pod"].update({"started_at": init_time})
             elif d.type == "Ready":
+                ready = to_time(d.last_transition_time.timetuple())
+                stat_dict["kubernetes.ready_pod"].update({"started_at": ready})
+                stat_dict["kubernetes.initialized_pod"].update({"finished_at": ready})
+            elif d.type == "ContainersReady":
                 finish = to_time(d.last_transition_time.timetuple())
-                stat_dict["kubernetes.created_pod"].update({
-                    "started_at": start,
-                    "finished_at": finish
-                })
-                stat_dict["kubernetes.scheduled_pod"].update({
-                    "finished_at": finish
-                })
+                stat_dict["kubernetes.ready_pod"].update({"finished_at": finish})
+        stat_dict["kubernetes.pod_create"].update({"started_at": start,
+                                                   "finished_at": finish})
         return [{"name": k,
                  "started_at": v["started_at"],
                  "finished_at": v["finished_at"]}
@@ -70,11 +65,12 @@ class CreateAndDeletePod(common_scenario.BaseKubernetesScenario):
 
     def _make_data_from_conditions(self, conditions):
         """Make plot data from conditions made by parse method."""
-        data = [[] for _ in range(3)]
+        data = [[] for _ in range(4)]
         state_map = {
-            "kubernetes.initialized_pod": 0,
-            "kubernetes.scheduled_pod": 1,
-            "kubernetes.created_pod": 2
+            "kubernetes.scheduled_pod": 0,
+            "kubernetes.ready_pod": 1,
+            "kubernetes.initialized_pod": 2,
+            "kubernetes.pod_create": 3
         }
 
         for e in conditions:
