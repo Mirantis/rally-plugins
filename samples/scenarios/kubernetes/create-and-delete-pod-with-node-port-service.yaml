@@ -1,0 +1,36 @@
+---
+version: 2
+title: Create pod, create NodePort service and delete them all then
+subtasks:
+- title: Run a single workload with create/delete NodePort service
+  scenario:
+    Kubernetes.create_and_delete_pod_with_node_port_service:
+      image: gcr.io/google-samples/hello-go-gke:1.0
+      port: 80
+      protocol: TCP
+  runner:
+    constant:
+      concurrency: 2
+      times: 10
+  contexts:
+    namespaces:
+      count: 3
+      with_serviceaccount: true
+    kubernetes.cfg:
+      prepoll_delay: 1
+- title: Run create/delete NodePort service with rps runner
+  scenario:
+    Kubernetes.create_and_delete_pod_with_node_port_service:
+      image: gcr.io/google-samples/hello-go-gke:1.0
+      port: 80
+      protocol: TCP
+  runner:
+    rps:
+      rps: 2
+      times: 10
+  contexts:
+    namespaces:
+      count: 3
+      with_serviceaccount: true
+    kubernetes.cfg:
+      prepoll_delay: 1

@@ -963,6 +963,43 @@ Kubernetes.create_check_and_delete_pod_with_node_port_service
 
 The task contains next args:
 
++-----------------+--------+-------------------------------------+
+| Argument        | Type   | Description                         |
++=================+========+=====================================+
+| image           | string | image used in container's spec      |
++-----------------+--------+-------------------------------------+
+| port            | integer| port used as container port and in  |
+|                 |        | service                             |
++-----------------+--------+-------------------------------------+
+| protocol        | integer| protocol used as container port     |
+|                 |        | protocol and in service             |
++-----------------+--------+-------------------------------------+
+| image           | string | image used in container's spec      |
++-----------------+--------+-------------------------------------+
+| name            | string | daemonset custom name, default is   |
+|                 |        | random                              |
++-----------------+--------+-------------------------------------+
+| command         | array  | array of strings representing       |
+|                 |        | container command                   |
++-----------------+--------+-------------------------------------+
+| request_timeout | integer| GET request timeout check nodePort  |
++-----------------+--------+-------------------------------------+
+| status_wait     | bool   | wait for all pods will be ready     |
++-----------------+--------+-------------------------------------+
+
+The task supports *constant* and *rps* types of scenario runner.
+
+To run the test, run next command:
+
+..
+
+  rally task start samples/scenarios/kubernetes/create-check-and-delete-pod-with-node-port-service.yaml
+
+Kubernetes.create_and_delete_pod_with_node_port_service
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The task contains next args:
+
 +---------------+--------+-------------------------------------+
 | Argument      | Type   | Description                         |
 +===============+========+=====================================+
@@ -991,4 +1028,4 @@ To run the test, run next command:
 
 ..
 
-  rally task start samples/scenarios/kubernetes/create-check-and-delete-pod-with-node-port-service.yaml
+  rally task start samples/scenarios/kubernetes/create-and-delete-pod-with-node-port-service.yaml

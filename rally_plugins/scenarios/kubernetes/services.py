@@ -168,7 +168,7 @@ class PodWithClusterIPSvcWithEndpoints(common_scenario.BaseKubernetesScenario):
     "Kubernetes.create_check_and_delete_pod_with_node_port_service",
     platform="kubernetes"
 )
-class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
+class PodWithNodePortAndCheckService(common_scenario.BaseKubernetesScenario):
 
     def run(self, image, port, protocol, request_timeout=None,
             command=None, status_wait=True):
@@ -240,6 +240,58 @@ class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
                                     })
                 else:
                     break
+
+        self.client.delete_service(name, namespace=namespace)
+        self.client.delete_pod(
+            name,
+            namespace=namespace,
+            status_wait=status_wait
+        )
+
+
+@scenario.configure(
+    "Kubernetes.create_and_delete_pod_with_node_port_service",
+    platform="kubernetes"
+)
+class PodWithNodePortService(common_scenario.BaseKubernetesScenario):
+
+    def run(self, image, port, protocol, command=None, status_wait=True):
+        """Create pod and nodePort svc, request pod by port and delete then.
+
+        :param image: pod's image
+        :param port: pod's container port and svc port integer
+        :param protocol: pod's container port and svc port protocol
+        :param command: pod's array of strings representing command
+        :param status_wait: wait for pod status if True
+        """
+        namespace = self.choose_namespace()
+        labels = {"app": self.generate_random_name()}
+
+        name = self.client.create_pod(
+            image,
+            namespace=namespace,
+            command=command,
+            port=port,
+            protocol=protocol,
+            labels=labels,
+            status_wait=status_wait
+        )
+
+        self.client.create_service(
+            name,
+            namespace=namespace,
+            port=port,
+            protocol=protocol,
+            type="NodePort",
+            labels=labels
+        )
+
+        svc = self.client.get_service(name, namespace=namespace)
+
+        if not hasattr(svc.spec.ports[0], 'node_port'):
+            raise exceptions.RallyException(
+                message="Unable to get nodePort from service"
+            )
 
         self.client.delete_service(name, namespace=namespace)
         self.client.delete_pod(
