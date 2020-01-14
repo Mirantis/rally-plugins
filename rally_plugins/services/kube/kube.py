@@ -64,13 +64,15 @@ def wait_for_status(name, status, read_method, resource_type=None, **kwargs):
         else:
             return
         if i == retries_total:
-            raise exceptions.TimeoutException(
+            err = exceptions.TimeoutException(
                 desired_status=status,
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
                 resource_status=current_status,
                 timeout=(retries_total * sleep_time))
+            LOG.error(str(err))
+            return
 
 
 def wait_for_ready_replicas(name, read_method, resource_type=None,
@@ -102,13 +104,15 @@ def wait_for_ready_replicas(name, read_method, resource_type=None,
         else:
             return
         if i == retries_total:
-            raise exceptions.TimeoutException(
+            err = exceptions.TimeoutException(
                 desired_status="%s replicas running" % replicas,
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
                 resource_status="%s replicas running" % current_replicas,
                 timeout=(retries_total * sleep_time))
+            LOG.error(str(err))
+            return
 
 
 def wait_for_not_found(name, read_method, resource_type=None, **kwargs):
