@@ -20,10 +20,12 @@ from rally_plugins.scenarios.kubernetes import common as common_scenario
 @scenario.configure("Kubernetes.create_and_delete_job", platform="kubernetes")
 class CreateAndDeleteJob(common_scenario.BaseKubernetesScenario):
 
-    def run(self, image, command, name=None, status_wait=True):
+    def run(self, image, command, image_pull_policy='IfNotPresent', name=None,
+            status_wait=True):
         """Create job with no restart policy, wait for success and delete then.
 
         :param image: job container's image
+        :param image_pull_policy: override default image pull policy
         :param command: job container's command
         :param name: job custom name
         :param status_wait: wait for success if True
@@ -34,6 +36,7 @@ class CreateAndDeleteJob(common_scenario.BaseKubernetesScenario):
             name,
             namespace=namespace,
             image=image,
+            image_pull_policy=image_pull_policy,
             command=command,
             status_wait=status_wait
         )

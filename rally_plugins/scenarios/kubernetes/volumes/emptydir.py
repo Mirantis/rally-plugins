@@ -23,14 +23,16 @@ from rally_plugins.scenarios.kubernetes.volumes import base
 )
 class CreateAndDeletePodWithEmptyDirVolume(base.PodWithVolumeBaseScenario):
 
-    def run(self, image, mount_path, check_cmd=None, error_regexp=None,
-            command=None, status_wait=True):
+    def run(self, image, mount_path, image_pull_policy='IfNotPresent',
+            check_cmd=None, error_regexp=None, command=None,
+            status_wait=True):
         """Create pod with emptyDir volume, optionally check and delete then.
 
         Create pod with emptyDir volume, optionally wait for it's readiness,
         check volume existence by check_cmd, if it defined and delete pod then.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param mount_path: path to mount volume in pod
         :param check_cmd: check command to exec in pod; if None, then no check
         :param error_regexp: regexp string to search error in pod exec response
@@ -56,6 +58,7 @@ class CreateAndDeletePodWithEmptyDirVolume(base.PodWithVolumeBaseScenario):
 
         super(CreateAndDeletePodWithEmptyDirVolume, self).run(
             image,
+            image_pull_policy=image_pull_policy,
             name=name,
             command=command,
             check_cmd=check_cmd,

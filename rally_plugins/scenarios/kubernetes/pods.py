@@ -78,10 +78,12 @@ class CreateAndDeletePod(common_scenario.BaseKubernetesScenario):
             data[state_map[e["name"]]] = [e["name"], duration]
         return data
 
-    def run(self, image, command=None, status_wait=True):
+    def run(self, image, image_pull_policy='IfNotPresent', command=None,
+            status_wait=True):
         """Create pod, wait until it won't be running and then delete it.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param command: array of strings, pod's command. Could be None if
                image have entrypoint
         :param status_wait: wait pod status after creation
@@ -90,6 +92,7 @@ class CreateAndDeletePod(common_scenario.BaseKubernetesScenario):
 
         name = self.client.create_pod(
             image,
+            image_pull_policy=image_pull_policy,
             namespace=namespace,
             command=command,
             status_wait=status_wait

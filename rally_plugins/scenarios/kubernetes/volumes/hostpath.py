@@ -27,7 +27,8 @@ from rally_plugins.scenarios.kubernetes.volumes import base
 )
 class CreateAndDeletePodWithHostPathVolume(base.PodWithVolumeBaseScenario):
 
-    def run(self, image, mount_path, volume_type, volume_path, check_cmd=None,
+    def run(self, image, mount_path, volume_type, volume_path,
+            image_pull_policy='IfNotPresent', check_cmd=None,
             error_regexp=None, command=None, status_wait=True):
         """Create pod with hostPath volume, optionally check and delete then.
 
@@ -35,6 +36,7 @@ class CreateAndDeletePodWithHostPathVolume(base.PodWithVolumeBaseScenario):
         check volume existence by check_cmd, if it defined and delete pod then.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param mount_path: path to mount volume in pod
         :param volume_path: hostPath volume path in host
         :param volume_type: hostPath type according to Kubernetes docs
@@ -65,6 +67,7 @@ class CreateAndDeletePodWithHostPathVolume(base.PodWithVolumeBaseScenario):
 
         super(CreateAndDeletePodWithHostPathVolume, self).run(
             image,
+            image_pull_policy=image_pull_policy,
             name=name,
             command=command,
             check_cmd=check_cmd,

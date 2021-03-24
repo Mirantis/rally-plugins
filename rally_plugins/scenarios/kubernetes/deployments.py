@@ -63,11 +63,13 @@ class CreateRolloutAndDeleteDeployment(common.BaseKubernetesScenario):
     Create deployment, rollout deployment with some args and delete it then.
     """
 
-    def run(self, image, replicas, changes, name=None, command=None,
-            env=None, resources=None, status_wait=True):
+    def run(self, image, replicas, changes, image_pull_policy='IfNotPresent',
+            name=None, command=None, env=None, resources=None,
+            status_wait=True):
         """Create deployment, scale for number of replicas and then delete it.
 
         :param image: deployment pod template image
+        :param image_pull_policy: override default image pull policy
         :param replicas: original number of replicas
         :param changes: map of changes, where could be image, env or resources
                requirements
@@ -84,6 +86,7 @@ class CreateRolloutAndDeleteDeployment(common.BaseKubernetesScenario):
             namespace=namespace,
             replicas=replicas,
             image=image,
+            image_pull_policy=image_pull_policy,
             command=command,
             env=env,
             resources=resources,

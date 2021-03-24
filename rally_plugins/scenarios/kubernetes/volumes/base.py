@@ -22,11 +22,13 @@ class PodWithVolumeBaseScenario(common_scenario.BaseKubernetesScenario):
         super(PodWithVolumeBaseScenario, self).__init__(context)
         self.namespace = self.choose_namespace()
 
-    def run(self, image, name=None, check_cmd=None, command=None,
-            error_regexp=None, volume=None, status_wait=True):
+    def run(self, image, image_pull_policy='IfNotPresent', name=None,
+            check_cmd=None, command=None, error_regexp=None,
+            volume=None, status_wait=True):
         """Super class for all kubernetes pod with volume scenarios.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param name: pod's name, equals to volume name
         :param check_cmd: pod exec command, available if volume_check is True
         :param command: pod container's command
@@ -38,6 +40,7 @@ class PodWithVolumeBaseScenario(common_scenario.BaseKubernetesScenario):
         """
         name = self.client.create_pod(
             image,
+            image_pull_policy=image_pull_policy,
             name=name,
             volume=volume,
             namespace=self.namespace,

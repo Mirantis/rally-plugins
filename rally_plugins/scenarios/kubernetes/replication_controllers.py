@@ -26,11 +26,13 @@ class RCCreateAndDelete(common_scenario.BaseKubernetesScenario):
     and number of replicas, wait until it won't be running and delete it after.
     """
 
-    def run(self, image, replicas, command=None, status_wait=True):
+    def run(self, image, replicas, image_pull_policy='IfNotPresent',
+            command=None, status_wait=True):
         """Create and delete replication controller.
 
-        :param replicas: number of replicas for replication controller
         :param image: replication controller image
+        :param image_pull_policy: override default image pull policy
+        :param replicas: number of replicas for replication controller
         :param command: array of strings representing container command
         :param status_wait: wait replication controller status
         """
@@ -38,6 +40,7 @@ class RCCreateAndDelete(common_scenario.BaseKubernetesScenario):
         name = self.client.create_rc(
             replicas=replicas,
             image=image,
+            image_pull_policy=image_pull_policy,
             namespace=namespace,
             command=command,
             status_wait=status_wait
@@ -61,11 +64,12 @@ class CreateScaleAndDeleteRCPlugin(common_scenario.BaseKubernetesScenario):
     scale it with original number of replicas, delete replication controller.
     """
 
-    def run(self, image, replicas, scale_replicas, command=None,
-            status_wait=True):
+    def run(self, image, replicas, scale_replicas,
+            image_pull_policy='IfNotPresent', command=None, status_wait=True):
         """Create RC, scale with replicas, revert scale and then delete it.
 
         :param image: RC pod template image
+        :param image_pull_policy: override default image pull policy
         :param replicas: original number of replicas
         :param scale_replicas: number of replicas to scale
         :param command: array of strings representing container command
@@ -77,6 +81,7 @@ class CreateScaleAndDeleteRCPlugin(common_scenario.BaseKubernetesScenario):
             namespace=namespace,
             replicas=replicas,
             image=image,
+            image_pull_policy=image_pull_policy,
             command=command,
             status_wait=status_wait
         )

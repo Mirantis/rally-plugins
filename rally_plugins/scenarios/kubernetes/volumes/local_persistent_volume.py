@@ -31,8 +31,8 @@ from rally_plugins.scenarios.kubernetes.volumes import base
 class CreateAndDeletePodWithLocalPVVolume(base.PodWithVolumeBaseScenario):
 
     def run(self, image, mount_path, persistent_volume,
-            persistent_volume_claim, check_cmd=None, error_regexp=None,
-            command=None, status_wait=True):
+            persistent_volume_claim, image_pull_policy='IfNotPresent', 
+            check_cmd=None, error_regexp=None, command=None, status_wait=True):
         """Create pod with local PV, optionally check and delete then.
 
         Create pod with local persistent volume, optionally wait for it's
@@ -40,6 +40,7 @@ class CreateAndDeletePodWithLocalPVVolume(base.PodWithVolumeBaseScenario):
         delete pod then.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param mount_path: path to mount volume in pod
         :param persistent_volume: a dict with the next keys: `size`,
                `volume_mode`, `local_path`, `access_modes`, `node_affinity`
@@ -90,6 +91,7 @@ class CreateAndDeletePodWithLocalPVVolume(base.PodWithVolumeBaseScenario):
 
         super(CreateAndDeletePodWithLocalPVVolume, self).run(
             image,
+            image_pull_policy=image_pull_policy,
             name=name,
             command=command,
             check_cmd=check_cmd,

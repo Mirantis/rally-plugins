@@ -23,7 +23,8 @@ from rally_plugins.scenarios.kubernetes.volumes import base
 )
 class CreateAndDeletePodWithConfigMapVolume(base.PodWithVolumeBaseScenario):
 
-    def run(self, image, mount_path, configmap_data, subpath=None,
+    def run(self, image, mount_path, configmap_data,
+            image_pull_policy='IfNotPresent', subpath=None,
             check_cmd=None, error_regexp=None, command=None, status_wait=True):
         """Create pod with configMap volume, optionally check and delete then.
 
@@ -31,6 +32,7 @@ class CreateAndDeletePodWithConfigMapVolume(base.PodWithVolumeBaseScenario):
         check volume existence by check_cmd, if it defined and delete pod then.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param mount_path: path to mount volume in pod
         :param configmap_data: configMap resource data
         :param subpath: subPath from configMap data to mount in pod
@@ -68,6 +70,7 @@ class CreateAndDeletePodWithConfigMapVolume(base.PodWithVolumeBaseScenario):
 
         super(CreateAndDeletePodWithConfigMapVolume, self).run(
             image,
+            image_pull_policy=image_pull_policy,
             name=name,
             command=command,
             check_cmd=check_cmd,
