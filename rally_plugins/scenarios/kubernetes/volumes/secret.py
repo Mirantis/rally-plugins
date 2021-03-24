@@ -23,8 +23,9 @@ from rally_plugins.scenarios.kubernetes.volumes import base
 )
 class CreateAndDeletePodWithSecretVolume(base.PodWithVolumeBaseScenario):
 
-    def run(self, image, mount_path, check_cmd=None, error_regexp=None,
-            command=None, status_wait=True):
+    def run(self, image, mount_path, image_pull_policy='IfNotPresent',
+            check_cmd=None, error_regexp=None, command=None,
+            status_wait=True):
         """Create pod with secret volume, optionally check and delete then.
 
         Create secret, create pod with secret volume, optionally wait for it's
@@ -32,6 +33,7 @@ class CreateAndDeletePodWithSecretVolume(base.PodWithVolumeBaseScenario):
         delete pod and secret then.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param mount_path: path to mount volume in pod
         :param check_cmd: check command to exec in pod; if None, then no check
         :param error_regexp: regexp string to search error in pod exec response
@@ -61,6 +63,7 @@ class CreateAndDeletePodWithSecretVolume(base.PodWithVolumeBaseScenario):
 
         super(CreateAndDeletePodWithSecretVolume, self).run(
             image,
+            image_pull_policy=image_pull_policy,
             name=name,
             command=command,
             check_cmd=check_cmd,

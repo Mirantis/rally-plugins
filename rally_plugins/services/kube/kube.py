@@ -199,7 +199,7 @@ class Kubernetes(service.Service):
             if self._spec.get("tls_insecure", False):
                 config.verify_ssl = False
 
-        if self._spec.get("disable_assert_hostname") == True:
+        if self._spec.get("disable_assert_hostname") is True:
             config.assert_hostname = False
 
         if self._k8s_client_version == 3:
@@ -369,12 +369,13 @@ class Kubernetes(service.Service):
         return self.v1_client.read_namespaced_pod(name, namespace=namespace)
 
     @atomic.action_timer("kubernetes.create_pod")
-    def create_pod(self, image, namespace, command=None, volume=None,
-                   port=None, protocol=None, labels=None, name=None,
-                   status_wait=True):
+    def create_pod(self, image, namespace, image_pull_policy="IfNotPresent",
+                   command=None, volume=None, port=None, protocol=None,
+                   labels=None, name=None, status_wait=True):
         """Create pod and wait until status phase won't be Running.
 
         :param image: pod's image
+        :param image_pull_policy: override default image pull policy
         :param namespace: chosen namespace to create pod into
         :param volume: a dict, which contains `mount_path` and `volume` keys
                with parts of pod's manifest as values
@@ -389,7 +390,8 @@ class Kubernetes(service.Service):
 
         container_spec = {
             "name": name,
-            "image": image
+            "image": image,
+            "imagePullPolicy": image_pull_policy
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
@@ -585,8 +587,8 @@ class Kubernetes(service.Service):
         )
 
     @atomic.action_timer("kubernetes.create_replication_controller")
-    def create_rc(self, replicas, image, namespace, command=None,
-                  status_wait=True):
+    def create_rc(self, replicas, image, namespace, image_pull_policy='IfNotPresent',
+                  command=None, status_wait=True):
         """Create RC and wait until it won't be running.
 
         :param replicas: number of replicas
@@ -601,7 +603,8 @@ class Kubernetes(service.Service):
 
         container_spec = {
             "name": name,
-            "image": image
+            "image": image,
+            "imagePullPolicy": image_pull_policy
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
@@ -712,7 +715,7 @@ class Kubernetes(service.Service):
 
     @atomic.action_timer("kubernetes.create_replicaset")
     def create_replicaset(self, name, namespace, replicas, image,
-                          command=None, status_wait=True):
+                          image_pull_policy='IfNotPresent', command=None, status_wait=True):
         """Create replicaset and wait until it won't be ready.
 
         :param name: replicaset name
@@ -727,7 +730,8 @@ class Kubernetes(service.Service):
 
         container_spec = {
             "name": name,
-            "image": image
+            "image": image,
+            "imagePullPolicy": image_pull_policy
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
@@ -829,8 +833,8 @@ class Kubernetes(service.Service):
 
     @atomic.action_timer("kubernetes.create_deployment")
     def create_deployment(self, name, namespace, replicas, image,
-                          resources=None, env=None, command=None,
-                          status_wait=True):
+                          image_pull_policy='IfNotPresent', resources=None,
+                          env=None, command=None, status_wait=True):
         """Create replicaset and wait until it won't be ready.
 
         :param name: replicaset name
@@ -847,7 +851,8 @@ class Kubernetes(service.Service):
 
         container_spec = {
             "name": name,
-            "image": image
+            "image": image,
+            "imagePullPolicy": image_pull_policy
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
@@ -974,7 +979,8 @@ class Kubernetes(service.Service):
 
     @atomic.action_timer("kubernetes.create_statefulset")
     def create_statefulset(self, name, namespace, replicas, image,
-                           command=None, status_wait=True):
+                           image_pull_policy='IfNotPresent', command=None,
+                           status_wait=True):
         """Create statefulset and optionally wait for ready replicas.
 
         :param name: statefulset custom name
@@ -989,7 +995,8 @@ class Kubernetes(service.Service):
 
         container_spec = {
             "name": name,
-            "image": image
+            "image": image,
+            "imagePullPolicy": image_pull_policy
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)
@@ -1097,12 +1104,13 @@ class Kubernetes(service.Service):
 
     @atomic.action_timer("kubernetes.create_job")
     def create_job(self, name, namespace, image, command,
-                   restart_policy="Never", status_wait=True):
+                   image_pull_policy='IfNotPresent', restart_policy="Never", status_wait=True):
         """Create job and optionally wait for status.
 
         :param name: job custom name
         :param namespace: job chosen namespace
         :param image: job container's image
+        :param image_pull_policy: override default image pull policy
         :param command: job container's command
         :param restart_policy: job template restartPolicy, default is "Never"
         :param status_wait: wait for status if True
@@ -1128,6 +1136,7 @@ class Kubernetes(service.Service):
                             {
                                 "name": name,
                                 "image": image,
+                                "imagePullPolicy": image_pull_policy,
                                 "command": command
                             }
                         ]
@@ -1220,7 +1229,8 @@ class Kubernetes(service.Service):
         )
 
     @atomic.action_timer("kubernetes.create_daemonset")
-    def create_daemonset(self, namespace, image, command=None,
+    def create_daemonset(self, namespace, image,
+                         image_pull_policy='IfNotPresent', command=None,
                          node_labels=None, status_wait=True):
         """Create daemon set and optionally wait for status.
 
@@ -1236,7 +1246,8 @@ class Kubernetes(service.Service):
 
         container_spec = {
             "name": name,
-            "image": image
+            "image": image,
+            "imagePullPolicy": image_pull_policy
         }
         if command is not None and isinstance(command, (list, tuple)):
             container_spec["command"] = list(command)

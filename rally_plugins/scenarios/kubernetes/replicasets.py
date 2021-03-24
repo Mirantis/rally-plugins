@@ -64,11 +64,13 @@ class CreateScaleAndDeleteReplicaSetPlugin(common.BaseKubernetesScenario):
     scale it with original number of replicas, delete replicaset.
     """
 
-    def run(self, image, replicas, scale_replicas, name=None, command=None,
+    def run(self, image, replicas, scale_replicas,
+            image_pull_policy='IfNotPresent', name=None, command=None,
             status_wait=True):
         """Create replicaset, scale for number of replicas and then delete it.
 
         :param image: replicaset pod template image
+        :param image_pull_policy: override default image pull policy
         :param replicas: original number of replicas
         :param scale_replicas: number of replicas to scale
         :param name: custom replicaset name
@@ -82,6 +84,7 @@ class CreateScaleAndDeleteReplicaSetPlugin(common.BaseKubernetesScenario):
             namespace=namespace,
             replicas=replicas,
             image=image,
+            image_pull_policy=image_pull_policy,
             command=command,
             status_wait=status_wait
         )

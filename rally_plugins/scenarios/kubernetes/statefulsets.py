@@ -26,10 +26,12 @@ class CreateAndDeleteStatefulSet(common.BaseKubernetesScenario):
     of replicas, wait until it won't be running and delete it after.
     """
 
-    def run(self, image, replicas, name=None, command=None, status_wait=True):
+    def run(self, image, replicas, image_pull_policy='IfNotPresent', name=None,
+            command=None, status_wait=True):
         """Create and delete statefulset and wait for status optionally.
 
         :param image: container's template image
+        :param image_pull_policy: override default image pull policy
         :param replicas: number of replicas for statefulset
         :param name: custom statefulset name
         :param status_wait: wait for full status if True
@@ -41,6 +43,7 @@ class CreateAndDeleteStatefulSet(common.BaseKubernetesScenario):
             name,
             replicas=replicas,
             image=image,
+            image_pull_policy=image_pull_policy,
             namespace=namespace,
             command=command,
             status_wait=status_wait
@@ -62,11 +65,13 @@ class CreateScaleAndDeleteReplicaSetPlugin(common.BaseKubernetesScenario):
     scale it with original number of replicas, delete statefulset.
     """
 
-    def run(self, image, replicas, scale_replicas, name=None, command=None,
+    def run(self, image, replicas, scale_replicas,
+            image_pull_policy='IfNotPresent', name=None, command=None,
             status_wait=True):
         """Create statefulset, scale for number of replicas and then delete it.
 
         :param image: statefulset pod template image
+        :param image_pull_policy: override default image pull policy
         :param replicas: original number of replicas
         :param scale_replicas: number of replicas to scale
         :param name: custom statefulset name
@@ -80,6 +85,7 @@ class CreateScaleAndDeleteReplicaSetPlugin(common.BaseKubernetesScenario):
             namespace=namespace,
             replicas=replicas,
             image=image,
+            image_pull_policy=image_pull_policy,
             command=command,
             status_wait=status_wait
         )
