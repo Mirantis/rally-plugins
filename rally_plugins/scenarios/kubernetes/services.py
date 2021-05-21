@@ -229,32 +229,33 @@ class PodWithNodePortAndCheckService(common_scenario.BaseKubernetesScenario):
             else:
                 ip = "://" + server[:server.index(":") + 1]
             url = ("http" + ip + str(node_port) + "/")
-            while i < retries_total:
-                try:
-                    kwargs = {}
-                    if request_timeout:
-                        kwargs["timeout"] = request_timeout
-                    requests.get(url, **kwargs)
-                except (requests.ConnectionError, requests.ReadTimeout) as ex:
-                    if i < retries_total:
-                        i += 1
-                        commonutils.interruptable_sleep(sleep_time)
+            try:
+                while i < retries_total:
+                    try:
+                        kwargs = {}
+                        if request_timeout:
+                            kwargs["timeout"] = request_timeout
+                        requests.get(url, **kwargs)
+                    except (requests.ConnectionError, requests.ReadTimeout) as ex:
+                        if i < retries_total:
+                            i += 1
+                            commonutils.interruptable_sleep(sleep_time)
+                        if i == retries_total:
+                            raise exceptions.RallyException(
+                                message="Unable to get response "
+                                        "from %(url)s: %(ex)s" % {
+                                            "url": url,
+                                            "ex": str(ex)
+                                        })
                     else:
-                        raise exceptions.RallyException(
-                            message="Unable to get response "
-                                    "from %(url)s: %(ex)s" % {
-                                        "url": url,
-                                        "ex": str(ex)
-                                    })
-                else:
-                    break
-
-        self.client.delete_service(name, namespace=namespace)
-        self.client.delete_pod(
-            name,
-            namespace=namespace,
-            status_wait=status_wait
-        )
+                        break
+            finally:
+                self.client.delete_service(name, namespace=namespace)
+                self.client.delete_pod(
+                    name,
+                    namespace=namespace,
+                    status_wait=status_wait
+                )
 
 
 @scenario.configure(
