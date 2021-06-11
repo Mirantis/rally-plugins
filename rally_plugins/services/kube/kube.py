@@ -804,7 +804,7 @@ class Kubernetes(service.Service):
 
     @atomic.action_timer("kubernetes.get_deployment")
     def get_deployment(self, name, namespace, **kwargs):
-        return self.v1beta1_ext.read_namespaced_deployment_status(
+        return self.v1_apps.read_namespaced_deployment_status(
             name=name,
             namespace=namespace
         )
@@ -840,7 +840,7 @@ class Kubernetes(service.Service):
             container_spec["resources"] = resources
 
         manifest = {
-            "apiVersion": "extensions/v1beta1",
+            "apiVersion": "apps/v1",
             "kind": "Deployment",
             "metadata": {
                 "name": name,
@@ -868,7 +868,7 @@ class Kubernetes(service.Service):
         if not self._spec.get("serviceaccounts"):
             del manifest["spec"]["template"]["spec"]["serviceAccountName"]
 
-        self.v1beta1_ext.create_namespaced_deployment(
+        self.v1_apps.create_namespaced_deployment(
             namespace=namespace,
             body=manifest
         )
@@ -912,7 +912,7 @@ class Kubernetes(service.Service):
                         "exclusive keys: image, env, resources."
             )
 
-        self.v1beta1_ext.patch_namespaced_deployment(
+        self.v1_apps.patch_namespaced_deployment(
             name=name,
             namespace=namespace,
             body=deployment
@@ -935,7 +935,7 @@ class Kubernetes(service.Service):
         :param namespace: deployment namespace
         :param status_wait: wait for termination if True
         """
-        self.v1beta1_ext.delete_namespaced_deployment(
+        self.v1_apps.delete_namespaced_deployment(
             name=name,
             namespace=namespace,
             body=k8s_config.V1DeleteOptions()
