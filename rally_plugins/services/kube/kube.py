@@ -849,6 +849,11 @@ class Kubernetes(service.Service):
                 }
             },
             "spec": {
+                "selector": {
+                    "matchLabels": {
+                        "app": app
+                    }
+                },
                 "replicas": replicas,
                 "template": {
                     "metadata": {
