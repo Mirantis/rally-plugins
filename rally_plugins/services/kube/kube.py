@@ -1402,7 +1402,10 @@ class Kubernetes(service.Service):
                 "hostPath": {
                     "path": local_path
                 },
-                "nodeAffinity": node_affinity
+                "nodeAffinity": node_affinity,
+                "claimRef": {
+                    "name": name
+                }
             }
         }
 
