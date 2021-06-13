@@ -1256,7 +1256,8 @@ class Kubernetes(service.Service):
                     },
                     "spec": {
                         "serviceAccountName": namespace,
-                        "containers": [container_spec]
+                        "containers": [container_spec],
+                        "nodeSelector": node_labels
                     }
                 }
             }
