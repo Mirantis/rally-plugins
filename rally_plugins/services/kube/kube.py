@@ -153,7 +153,7 @@ def wait_for_not_found(name, read_method, resource_type=None, **kwargs):
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
-                resource_status=current_status,
+                resource_status="%s replicas running and %s replicas ready" % (current_replicas, ready_replicas),
                 timeout=(retries_total * sleep_time))
 
 
