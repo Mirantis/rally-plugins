@@ -107,7 +107,7 @@ def wait_for_ready_replicas(name, read_method, resource_type=None,
                 resource_name=name,
                 resource_type=resource_type,
                 resource_id=resp_id or "<no id>",
-                resource_status="%s replicas running" % current_replicas,
+                resource_status="%s replicas running and %s replicas ready" % (current_replicas, ready_replicas),
                 timeout=(retries_total * sleep_time))
 
 
